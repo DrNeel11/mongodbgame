@@ -1,8 +1,3 @@
-"""
-MongoDB CRUD Operations for the Multiplayer Gaming System
-Demonstrates: Create, Read, Update, Delete operations
-"""
-
 from datetime import datetime
 from typing import List, Optional
 from bson import ObjectId
@@ -168,7 +163,6 @@ class PlayerStatsCRUD:
     # CREATE
     @staticmethod
     async def create_player_stats(player_id: str, game_id: str) -> dict:
-        """Create initial stats for a player in a game"""
         collection = get_player_stats_collection()
         stats_data = {
             "player_id": player_id,
@@ -191,7 +185,6 @@ class PlayerStatsCRUD:
     # READ
     @staticmethod
     async def get_player_stats(player_id: str, game_id: str) -> Optional[dict]:
-        """Get stats for a player in a specific game"""
         collection = get_player_stats_collection()
         stats = await collection.find_one({
             "player_id": player_id,
@@ -201,7 +194,6 @@ class PlayerStatsCRUD:
     
     @staticmethod
     async def get_all_stats_for_player(player_id: str) -> List[dict]:
-        """Get all game stats for a player"""
         collection = get_player_stats_collection()
         cursor = collection.find({"player_id": player_id})
         stats = await cursor.to_list(length=100)
@@ -210,10 +202,9 @@ class PlayerStatsCRUD:
     # UPDATE
     @staticmethod
     async def increment_stats(player_id: str, game_id: str, increments: dict) -> Optional[dict]:
-        """Increment player stats (kills, deaths, wins, etc.)"""
         collection = get_player_stats_collection()
         
-        # Build increment operations
+      
         inc_ops = {k: v for k, v in increments.items() if v is not None and v != 0}
         
         if inc_ops:
@@ -225,7 +216,7 @@ class PlayerStatsCRUD:
                 }
             )
         
-        # Recalculate ratios
+        
         stats = await PlayerStatsCRUD.get_player_stats(player_id, game_id)
         if stats:
             kd_ratio = stats["kills"] / max(stats["deaths"], 1)
@@ -242,7 +233,6 @@ class PlayerStatsCRUD:
     # DELETE
     @staticmethod
     async def delete_player_stats(player_id: str, game_id: str) -> bool:
-        """Delete player stats for a game"""
         collection = get_player_stats_collection()
         result = await collection.delete_one({
             "player_id": player_id,
@@ -257,7 +247,6 @@ class MatchHistoryCRUD:
     # CREATE
     @staticmethod
     async def create_match(match_data: dict) -> dict:
-        """Record a completed match"""
         collection = get_match_history_collection()
         match_data["timestamp"] = datetime.utcnow()
         result = await collection.insert_one(match_data)
@@ -292,7 +281,7 @@ class MatchHistoryCRUD:
         matches = await cursor.to_list(length=limit)
         return serialize_docs(matches)
     
-    # UPDATE (typically matches are immutable, but for demonstration)
+    # UPDATE 
     @staticmethod
     async def update_match(match_id: str, update_data: dict) -> Optional[dict]:
         """Update match data (admin use)"""
