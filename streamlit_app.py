@@ -43,7 +43,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Helper functions
-def make_request(method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None):
+def make_request(method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None, show_error: bool = True):
     """Make API request with error handling"""
     try:
         url = f"{API_BASE_URL}{endpoint}"
@@ -51,26 +51,33 @@ def make_request(method: str, endpoint: str, data: Optional[Dict] = None, params
         if method == "GET":
             response = requests.get(url, params=params, timeout=10)
         elif method == "POST":
-            response = requests.post(url, json=data, timeout=10)
+            response = requests.post(url, json=data, params=params, timeout=10)
         elif method == "PUT":
-            response = requests.put(url, json=data, timeout=10)
+            response = requests.put(url, json=data, params=params, timeout=10)
         elif method == "PATCH":
-            response = requests.patch(url, json=data, timeout=10)
+            response = requests.patch(url, json=data, params=params, timeout=10)
         elif method == "DELETE":
-            response = requests.delete(url, timeout=10)
+            response = requests.delete(url, params=params, timeout=10)
         else:
             return None
             
         response.raise_for_status()
         return response.json() if response.content else None
     except requests.exceptions.ConnectionError:
-        st.error("❌ Cannot connect to API. Make sure the server is running on http://localhost:8000")
+        if show_error:
+            st.error("❌ Cannot connect to API. Make sure the server is running on http://localhost:8000")
         return None
     except requests.exceptions.HTTPError as e:
-        st.error(f"❌ API Error: {e.response.status_code} - {e.response.text}")
+        if show_error:
+            try:
+                error_detail = e.response.json().get("detail", e.response.text)
+            except:
+                error_detail = e.response.text
+            st.error(f"❌ API Error: {e.response.status_code} - {error_detail}")
         return None
     except Exception as e:
-        st.error(f"❌ Error: {str(e)}")
+        if show_error:
+            st.error(f"❌ Error: {str(e)}")
         return None
 
 
@@ -821,7 +828,7 @@ def show_admin_panel():
                 selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_view_player")
                 player = next((p for p in all_players if p.get("username") == selected), None)
                 if player:
-                    st.json({k: v for k, v in player.items() if k != "_id"})
+                    st.json({k: v for k, v in player.items()})
         
         with sub_tabs[2]:
             if all_players:
@@ -1078,51 +1085,534 @@ def show_admin_panel():
             
             if game:
                 game_id = str(game.get("_id"))
-                lb = make_request("GET", f"/leaderboards/game/{game_id}")
                 
-                if lb:
-                    st.write(f"**Type:** {lb.get('leaderboard_type')} | **Timeframe:** {lb.get('timeframe')}")
-                    st.write(f"**Entries:** {len(lb.get('entries', []))}")
-                else:
-                    st.warning("No leaderboard for this game")
+                # Leaderboard sub-tabs
+                lb_tabs = st.tabs(["View & Filter", "Create New", "Add Entries", "Delete"])
+                
+                # View & Filter leaderboards
+                with lb_tabs[0]:
+                    st.subheader("View Leaderboard")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        view_type = st.selectbox(
+                            "Leaderboard Type",
+                            ["Wins", "Kills", "XP", "Score", "Playtime"],
+                            key="view_lb_type"
+                        )
+                    with col2:
+                        view_timeframe = st.selectbox(
+                            "Timeframe",
+                            ["All Time", "Monthly", "Weekly", "Daily"],
+                            key="view_lb_timeframe"
+                        )
+                    
+                    if st.button("🔍 View Leaderboard", use_container_width=True, key="view_lb_btn"):
+                        type_map = {"Wins": "wins", "Kills": "kills", "XP": "xp", "Score": "score", "Playtime": "playtime"}
+                        timeframe_map = {"All Time": "all_time", "Monthly": "monthly", "Weekly": "weekly", "Daily": "daily"}
+                        
+                        params = {
+                            "leaderboard_type": type_map[view_type],
+                            "timeframe": timeframe_map[view_timeframe]
+                        }
+                        
+                        lb = make_request("GET", f"/leaderboards/game/{game_id}", params=params, show_error=False)
+                        
+                        if lb:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Type", lb.get('leaderboard_type', 'N/A'))
+                            with col2:
+                                st.metric("Timeframe", lb.get('timeframe', 'N/A'))
+                            with col3:
+                                st.metric("Entries", len(lb.get('entries', [])))
+                            
+                            entries = lb.get('entries', [])
+                            if entries:
+                                df_lb = pd.DataFrame([{
+                                    "Rank": i + 1,
+                                    "Player ID": e.get("player_id", "N/A"),
+                                    "Score": e.get("score", 0),
+                                    "Wins": e.get("wins", 0),
+                                    "Level": e.get("level", 0)
+                                } for i, e in enumerate(entries[:50])])
+                                st.dataframe(df_lb, use_container_width=True)
+                            else:
+                                st.info("No entries in this leaderboard yet")
+                        else:
+                            st.error(f"❌ Leaderboard not found for {view_type} ({view_timeframe}). Create it first!")
+                
+                # Create leaderboard
+                with lb_tabs[1]:
+                    st.subheader("Create New Leaderboard")
+                    
+                    st.info("📋 Each leaderboard has a fixed type and timeframe. Create one for each type/timeframe combination you need.")
+                    
+                    with st.form("create_leaderboard_form"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            lb_type = st.selectbox(
+                                "Leaderboard Type",
+                                ["Wins", "Kills", "XP", "Score", "Playtime"],
+                                key="create_lb_type"
+                            )
+                        with col2:
+                            timeframe = st.selectbox(
+                                "Timeframe",
+                                ["All Time", "Monthly", "Weekly", "Daily"],
+                                key="create_lb_timeframe"
+                            )
+                        
+                        submitted = st.form_submit_button("✅ Create Leaderboard", use_container_width=True)
+                        
+                        if submitted:
+                            type_map = {"Wins": "wins", "Kills": "kills", "XP": "xp", "Score": "score", "Playtime": "playtime"}
+                            timeframe_map = {"All Time": "all_time", "Monthly": "monthly", "Weekly": "weekly", "Daily": "daily"}
+                            
+                            lb_data = {
+                                "game_id": game_id,
+                                "leaderboard_type": type_map[lb_type],
+                                "timeframe": timeframe_map[timeframe]
+                            }
+                            
+                            with st.spinner("Creating leaderboard..."):
+                                result = make_request("POST", "/leaderboards", data=lb_data)
+                                if result:
+                                    st.success(f"✅ Leaderboard created! Type: {lb_type}, Timeframe: {timeframe}")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to create leaderboard. It might already exist!")
+                
+                # Add/Update entries
+                with lb_tabs[2]:
+                    st.subheader("Add/Update Leaderboard Entry")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        entry_type = st.selectbox(
+                            "Leaderboard Type",
+                            ["Wins", "Kills", "XP", "Score", "Playtime"],
+                            key="entry_lb_type"
+                        )
+                    with col2:
+                        entry_timeframe = st.selectbox(
+                            "Timeframe",
+                            ["All Time", "Monthly", "Weekly", "Daily"],
+                            key="entry_lb_timeframe"
+                        )
+                    
+                    type_map = {"Wins": "wins", "Kills": "kills", "XP": "xp", "Score": "score", "Playtime": "playtime"}
+                    timeframe_map = {"All Time": "all_time", "Monthly": "monthly", "Weekly": "weekly", "Daily": "daily"}
+                    
+                    params = {
+                        "leaderboard_type": type_map[entry_type],
+                        "timeframe": timeframe_map[entry_timeframe]
+                    }
+                    
+                    lb = make_request("GET", f"/leaderboards/game/{game_id}", params=params, show_error=False)
+                    
+                    if lb:
+                        lb_id = str(lb.get("_id"))
+                        
+                        with st.form("add_entry_form"):
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                player_id = st.text_input("Player ID", placeholder="ObjectId")
+                            with col2:
+                                username = st.text_input("Username", placeholder="Player username")
+                            with col3:
+                                score = st.number_input("Score", min_value=0, value=0)
+                            
+                            submitted = st.form_submit_button("✅ Add/Update Entry", use_container_width=True)
+                            
+                            if submitted:
+                                if not player_id or not username:
+                                    st.error("Player ID and Username are required!")
+                                else:
+                                    result = make_request(
+                                        "POST",
+                                        f"/leaderboards/{lb_id}/entry",
+                                        params={
+                                            "player_id": str(player_id),
+                                            "username": str(username),
+                                            "score": str(score)
+                                        }
+                                    )
+                                    if result:
+                                        st.success("✅ Entry added/updated!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to add entry")
+                    else:
+                        st.error(f"❌ Leaderboard not found. Create it in the 'Create New' tab first!")
+                
+                # Delete leaderboard
+                with lb_tabs[3]:
+                    st.subheader("Delete Leaderboard")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        del_type = st.selectbox(
+                            "Leaderboard Type",
+                            ["Wins", "Kills", "XP", "Score", "Playtime"],
+                            key="delete_lb_type"
+                        )
+                    with col2:
+                        del_timeframe = st.selectbox(
+                            "Timeframe",
+                            ["All Time", "Monthly", "Weekly", "Daily"],
+                            key="delete_lb_timeframe"
+                        )
+                    
+                    type_map = {"Wins": "wins", "Kills": "kills", "XP": "xp", "Score": "score", "Playtime": "playtime"}
+                    timeframe_map = {"All Time": "all_time", "Monthly": "monthly", "Weekly": "weekly", "Daily": "daily"}
+                    
+                    params = {
+                        "leaderboard_type": type_map[del_type],
+                        "timeframe": timeframe_map[del_timeframe]
+                    }
+                    
+                    lb = make_request("GET", f"/leaderboards/game/{game_id}", params=params, show_error=False)
+                    
+                    if lb:
+                        lb_id = str(lb.get("_id"))
+                        
+                        st.warning(f"⚠️ This will permanently delete the {del_type} ({del_timeframe}) leaderboard and all its entries")
+                        
+                        if st.button("🗑️ Delete Leaderboard", type="secondary", use_container_width=True):
+                            result = make_request("DELETE", f"/leaderboards/{lb_id}")
+                            if result:
+                                st.success("✅ Leaderboard deleted!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete leaderboard")
+                    else:
+                        st.info("ℹ️ Leaderboard not found")
     
     with tabs[4]:  # Matches
         st.subheader("Match Management")
         
         all_players = make_request("GET", "/players", params={"limit": 100})
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        
         if all_players:
             selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_matches_player")
             player = next((p for p in all_players if p.get("username") == selected), None)
             
             if player:
-                matches = make_request("GET", f"/matches/player/{str(player.get('_id'))}")
-                if matches:
-                    duration_minutes = [m.get('duration', 0) // 60 if m.get('duration') else 0 for m in matches[:10]]
-                    df_matches = pd.DataFrame([{
-                        "Date": m.get("timestamp"),
-                        "Game": m.get("game_id"),
-                        "Mode": m.get("game_mode"),
-                        "Winner": m.get("winner_player_id"),
-                        "Duration": f"{duration_minutes[i]} min"
-                    } for i, m in enumerate(matches[:10])])
-                    st.dataframe(df_matches, use_container_width=True)
-                else:
-                    st.info("No matches found")
+                player_id = str(player.get('_id'))
+                
+                # Match sub-tabs
+                match_tabs = st.tabs(["View All", "Create Match", "Update", "Delete"])
+                
+                # View All matches
+                with match_tabs[0]:
+                    matches = make_request("GET", f"/matches/player/{player_id}")
+                    if matches:
+                        match_data = []
+                        for m in matches[:50]:
+                            duration_minutes = m.get('duration', 0) // 60 if m.get('duration') else 0
+                            match_data.append({
+                                "Date": m.get("timestamp", "N/A"),
+                                "Game": m.get("game_id", "N/A"),
+                                "Mode": m.get("game_mode", "N/A"),
+                                "Map": m.get("map_name", "N/A"),
+                                "Winner": m.get("winner_player_id", "N/A"),
+                                "Duration": f"{duration_minutes} min"
+                            })
+                        
+                        df_matches = pd.DataFrame(match_data)
+                        st.dataframe(df_matches, use_container_width=True)
+                    else:
+                        st.info("No matches found")
+                
+                # Create match
+                with match_tabs[1]:
+                    st.subheader("Create New Match")
+                    
+                    if all_games:
+                        with st.form("create_match_form"):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                selected_game = st.selectbox(
+                                    "Select Game",
+                                    [g.get("title", "") for g in all_games],
+                                    key="create_match_game"
+                                )
+                            with col2:
+                                game_mode = st.text_input("Game Mode", placeholder="e.g., TDM, Deathmatch")
+                            
+                            col3, col4 = st.columns(2)
+                            with col3:
+                                map_name = st.text_input("Map Name", placeholder="e.g., Nuketown")
+                            with col4:
+                                duration = st.number_input("Duration (seconds)", min_value=1, value=3600)
+                            
+                            winner_id = st.text_input("Winner Player ID (optional)", placeholder="Leave empty if no winner yet")
+                            
+                            submitted = st.form_submit_button("✅ Create Match", use_container_width=True)
+                            
+                            if submitted:
+                                if not selected_game or not game_mode or not map_name:
+                                    st.error("Game, Game Mode, and Map Name are required!")
+                                else:
+                                    game = next((g for g in all_games if g.get("title") == selected_game), None)
+                                    if game:
+                                        match_data = {
+                                            "player_id": player_id,
+                                            "game_id": str(game.get("_id")),
+                                            "game_mode": game_mode,
+                                            "map_name": map_name,
+                                            "duration": duration,
+                                            "winner_player_id": winner_id if winner_id else None
+                                        }
+                                        
+                                        result = make_request("POST", "/matches", data=match_data)
+                                        if result:
+                                            st.success("✅ Match created!")
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to create match")
+                    else:
+                        st.warning("No games available")
+                
+                # Update match
+                with match_tabs[2]:
+                    st.subheader("Update Match")
+                    
+                    matches = make_request("GET", f"/matches/player/{player_id}")
+                    if matches:
+                        # Select match by timestamp
+                        match_options = {f"{m.get('timestamp', 'Unknown')} - {m.get('game_mode', 'N/A')}": m for m in matches[:20]}
+                        selected_match_key = st.selectbox(
+                            "Select Match to Update",
+                            list(match_options.keys()),
+                            key="update_match_select"
+                        )
+                        
+                        match_to_update = match_options[selected_match_key]
+                        match_id = str(match_to_update.get("_id"))
+                        
+                        if all_games:
+                            with st.form("update_match_form"):
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    game_mode = st.text_input("Game Mode", value=match_to_update.get("game_mode", ""))
+                                with col2:
+                                    map_name = st.text_input("Map Name", value=match_to_update.get("map_name", ""))
+                                
+                                col3, col4 = st.columns(2)
+                                with col3:
+                                    duration = st.number_input("Duration (seconds)", min_value=1, value=match_to_update.get("duration", 3600))
+                                with col4:
+                                    winner_id = st.text_input("Winner Player ID", value=match_to_update.get("winner_player_id", ""))
+                                
+                                submitted = st.form_submit_button("✅ Update Match", use_container_width=True)
+                                
+                                if submitted:
+                                    match_data = {
+                                        "game_mode": game_mode,
+                                        "map_name": map_name,
+                                        "duration": duration,
+                                        "winner_player_id": winner_id if winner_id else None
+                                    }
+                                    
+                                    result = make_request("PUT", f"/matches/{match_id}", data=match_data)
+                                    if result:
+                                        st.success("✅ Match updated!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to update match")
+                    else:
+                        st.info("No matches to update")
+                
+                # Delete match
+                with match_tabs[3]:
+                    st.subheader("Delete Match")
+                    
+                    matches = make_request("GET", f"/matches/player/{player_id}")
+                    if matches:
+                        match_options = {f"{m.get('timestamp', 'Unknown')} - {m.get('game_mode', 'N/A')}": m for m in matches[:20]}
+                        selected_match_key = st.selectbox(
+                            "Select Match to Delete",
+                            list(match_options.keys()),
+                            key="delete_match_select"
+                        )
+                        
+                        match_to_delete = match_options[selected_match_key]
+                        match_id = str(match_to_delete.get("_id"))
+                        
+                        st.warning(f"⚠️ This will permanently delete this match record")
+                        
+                        if st.button("🗑️ Delete Match", type="secondary", use_container_width=True):
+                            result = make_request("DELETE", f"/matches/{match_id}")
+                            if result:
+                                st.success("✅ Match deleted!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to delete match")
+                    else:
+                        st.info("No matches to delete")
     
     with tabs[5]:  # Sessions
         st.subheader("Game Session Management")
         
         all_players = make_request("GET", "/players", params={"limit": 100})
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        
         if all_players:
             selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_sessions_player")
             player = next((p for p in all_players if p.get("username") == selected), None)
             
             if player:
-                sessions = make_request("GET", f"/sessions/active/{str(player.get('_id'))}")
-                if sessions:
-                    st.dataframe(pd.DataFrame(sessions[:10]), use_container_width=True)
-                else:
-                    st.info("No active sessions")
+                player_id = str(player.get('_id'))
+                
+                # Session sub-tabs
+                session_tabs = st.tabs(["View Active", "Create Session", "Update", "End Session"])
+                
+                # View Active Sessions
+                with session_tabs[0]:
+                    sessions = make_request("GET", f"/sessions/active/{player_id}", show_error=False)
+                    if sessions:
+                        session_data = []
+                        for s in sessions[:50]:
+                            session_data.append({
+                                "Game": s.get("game_id", "N/A"),
+                                "Started": s.get("started_at", "N/A"),
+                                "Duration": f"{(s.get('duration', 0) // 60)}m" if s.get('duration') else "0m",
+                                "Status": s.get("status", "active"),
+                                "Level": s.get("level", 0)
+                            })
+                        
+                        df_sessions = pd.DataFrame(session_data)
+                        st.dataframe(df_sessions, use_container_width=True)
+                    else:
+                        st.info("No active sessions")
+                
+                # Create Session
+                with session_tabs[1]:
+                    st.subheader("Start New Session")
+                    
+                    if all_games:
+                        with st.form("create_session_form"):
+                            selected_game = st.selectbox(
+                                "Select Game",
+                                [g.get("title", "") for g in all_games],
+                                key="create_session_game"
+                            )
+                            
+                            level = st.number_input("Starting Level", min_value=1, max_value=100, value=1)
+                            mode = st.text_input("Game Mode", placeholder="e.g., Campaign, Multiplayer")
+                            
+                            submitted = st.form_submit_button("✅ Start Session", use_container_width=True)
+                            
+                            if submitted:
+                                if not selected_game or not mode:
+                                    st.error("Game and Mode are required!")
+                                else:
+                                    game = next((g for g in all_games if g.get("title") == selected_game), None)
+                                    if game:
+                                        session_data = {
+                                            "player_id": player_id,
+                                            "game_id": str(game.get("_id")),
+                                            "level": level,
+                                            "mode": mode,
+                                            "status": "active"
+                                        }
+                                        
+                                        result = make_request("POST", "/sessions", data=session_data)
+                                        if result:
+                                            st.success("✅ Session started!")
+                                            st.rerun()
+                                        else:
+                                            st.error("Failed to create session")
+                    else:
+                        st.warning("No games available")
+                
+                # Update Session
+                with session_tabs[2]:
+                    st.subheader("Update Session")
+                    
+                    sessions = make_request("GET", f"/sessions/active/{player_id}", show_error=False)
+                    if sessions:
+                        session_options = {f"{s.get('game_id', 'Unknown')} - Started: {s.get('started_at', 'N/A')[:10]}": s for s in sessions[:20]}
+                        selected_session_key = st.selectbox(
+                            "Select Session to Update",
+                            list(session_options.keys()),
+                            key="update_session_select"
+                        )
+                        
+                        session_to_update = session_options[selected_session_key]
+                        session_id = str(session_to_update.get("_id"))
+                        
+                        with st.form("update_session_form"):
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                level = st.number_input(
+                                    "Level",
+                                    min_value=1,
+                                    max_value=100,
+                                    value=session_to_update.get("level", 1)
+                                )
+                            with col2:
+                                status_options = ["active", "paused", "inactive"]
+                                current_status = session_to_update.get("status", "active")
+                                status = st.selectbox(
+                                    "Status",
+                                    status_options,
+                                    index=status_options.index(current_status) if current_status in status_options else 0
+                                )
+                            
+                            mode = st.text_input(
+                                "Game Mode",
+                                value=session_to_update.get("mode", "")
+                            )
+                            
+                            submitted = st.form_submit_button("✅ Update Session", use_container_width=True)
+                            
+                            if submitted:
+                                session_data = {
+                                    "level": level,
+                                    "status": status,
+                                    "mode": mode
+                                }
+                                
+                                result = make_request("PUT", f"/sessions/{session_id}", data=session_data)
+                                if result:
+                                    st.success("✅ Session updated!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to update session")
+                    else:
+                        st.info("No sessions to update")
+                
+                # End/Delete Session
+                with session_tabs[3]:
+                    st.subheader("End Session")
+                    
+                    sessions = make_request("GET", f"/sessions/active/{player_id}")
+                    if sessions:
+                        session_options = {f"{s.get('game_id', 'Unknown')} - Started: {s.get('started_at', 'N/A')[:10]}": s for s in sessions[:20]}
+                        selected_session_key = st.selectbox(
+                            "Select Session to End",
+                            list(session_options.keys()),
+                            key="delete_session_select"
+                        )
+                        
+                        session_to_end = session_options[selected_session_key]
+                        session_id = str(session_to_end.get("_id"))
+                        
+                        st.warning(f"⚠️ This will end the active session")
+                        
+                        if st.button("🛑 End Session", type="secondary", use_container_width=True):
+                            result = make_request("DELETE", f"/sessions/{session_id}")
+                            if result:
+                                st.success("✅ Session ended!")
+                                st.rerun()
+                            else:
+                                st.error("Failed to end session")
+                    else:
+                        st.info("No active sessions to end")
     
     with tabs[6]:  # Notifications
         st.subheader("Notification Management")
