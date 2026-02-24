@@ -54,6 +54,8 @@ def make_request(method: str, endpoint: str, data: Optional[Dict] = None, params
             response = requests.post(url, json=data, timeout=10)
         elif method == "PUT":
             response = requests.put(url, json=data, timeout=10)
+        elif method == "PATCH":
+            response = requests.patch(url, json=data, timeout=10)
         elif method == "DELETE":
             response = requests.delete(url, timeout=10)
         else:
@@ -173,9 +175,15 @@ def show_players():
             username = st.text_input("Username", placeholder="Enter unique username")
             email = st.text_input("Email", placeholder="Enter email")
             level = st.number_input("Starting Level", min_value=1, max_value=100, value=1)
+            
+            # Platform mapping
+            platform_display = ["PC", "PlayStation", "Xbox", "Mobile", "Nintendo"]
+            platform_api = ["pc", "playstation", "xbox", "mobile", "nintendo"]
+            platform_map = dict(zip(platform_display, platform_api))
+            
             platforms = st.multiselect(
                 "Preferred Platforms",
-                ["PC", "PS5", "Xbox", "Mobile", "Switch"],
+                platform_display,
                 default=["PC"]
             )
             bio = st.text_area("Bio", placeholder="Enter player bio (optional)", height=100)
@@ -186,11 +194,14 @@ def show_players():
                 if not username or not email:
                     st.error("Username and email are required!")
                 else:
+                    # Convert platform names to API format
+                    api_platforms = [platform_map[p] for p in platforms]
+                    
                     player_data = {
                         "username": username,
                         "email": email,
                         "level": level,
-                        "platforms": platforms,
+                        "platforms": api_platforms,
                         "bio": bio,
                         "total_wins": 0,
                         "total_losses": 0,
@@ -270,17 +281,20 @@ def show_games():
                     col1, col2, col3 = st.columns([2, 1, 1])
                     with col1:
                         st.subheader(game.get("title", "Unknown"))
-                        st.write(game.get("description", "No description"))
+                        st.caption(f"Publisher: {game.get('publisher', 'N/A')}")
                     with col2:
-                        st.metric("Genre", game.get("genre", "N/A"))
+                        st.metric("Max Players", game.get("max_players", "N/A"))
                     with col3:
-                        st.metric("Rating", f"{game.get('rating', 0):.1f}⭐")
+                        crossplay_status = "✅ Yes" if game.get("crossplay_enabled") else "❌ No"
+                        st.metric("Crossplay", crossplay_status)
                     
-                    col_a, col_b = st.columns([3, 1])
+                    col_a, col_b = st.columns([1, 1])
                     with col_a:
-                        st.caption(f"Platforms: {', '.join(game.get('platforms', []))}")
+                        genres = game.get("genres", [])
+                        st.caption(f"Genres: {', '.join(genres) if genres else 'N/A'}")
                     with col_b:
-                        st.text(f"Released: {game.get('release_date', 'N/A')}")
+                        platforms = game.get("platforms", [])
+                        st.caption(f"Platforms: {', '.join(platforms) if platforms else 'N/A'}")
                     st.divider()
         else:
             st.warning("No games found")
@@ -290,35 +304,50 @@ def show_games():
         
         with st.form("add_game_form"):
             title = st.text_input("Game Title", placeholder="Enter game name")
-            description = st.text_area("Description", placeholder="Enter game description", height=100)
-            genre = st.selectbox("Genre", ["Action", "RPG", "Strategy", "Sports", "Puzzle", "Other"])
+            publisher = st.text_input("Publisher", placeholder="Enter game publisher")
+            
+            # Genre/Genres as multiselect
+            genres = st.multiselect(
+                "Genres",
+                ["Action", "RPG", "Strategy", "Sports", "Puzzle", "Other"],
+                default=["Action"]
+            )
+            
+            # Platform mapping
+            platform_display = ["PC", "PlayStation", "Xbox", "Mobile", "Nintendo", "VR"]
+            platform_api = ["pc", "playstation", "xbox", "mobile", "nintendo", "vr"]
+            platform_map = dict(zip(platform_display, platform_api))
+            
             platforms = st.multiselect(
                 "Platforms",
-                ["PC", "PS5", "Xbox", "Mobile", "Switch", "VR"],
+                platform_display,
                 default=["PC"]
             )
-            rating = st.slider("Rating", 0.0, 10.0, 8.0)
-            release_date = st.date_input("Release Date")
-            min_players = st.number_input("Min Players", min_value=1, value=1)
+            
+            crossplay = st.checkbox("Enable Crossplay", value=True)
             max_players = st.number_input("Max Players", min_value=1, value=4)
             
             submitted = st.form_submit_button("Add Game", use_container_width=True)
             
             if submitted:
-                game_data = {
-                    "title": title,
-                    "description": description,
-                    "genre": genre,
-                    "platforms": platforms,
-                    "rating": rating,
-                    "release_date": release_date.isoformat(),
-                    "min_players": min_players,
-                    "max_players": max_players
-                }
-                
-                result = make_request("POST", "/games", data=game_data)
-                if result:
-                    st.success(f"✅ Game '{title}' added successfully!")
+                if not title or not publisher or not genres or not platforms:
+                    st.error("Title, Publisher, Genres, and Platforms are required!")
+                else:
+                    # Convert platform names to API format
+                    api_platforms = [platform_map[p] for p in platforms]
+                    
+                    game_data = {
+                        "title": title,
+                        "publisher": publisher,
+                        "genres": genres,
+                        "platforms": api_platforms,
+                        "crossplay_enabled": crossplay,
+                        "max_players": max_players
+                    }
+                    
+                    result = make_request("POST", "/games", data=game_data)
+                    if result:
+                        st.success(f"✅ Game '{title}' added successfully!")
 
 
 # ==================== LEADERBOARDS ====================
@@ -326,18 +355,58 @@ def show_leaderboards():
     """Display leaderboards"""
     st.title("🏆 Leaderboards")
     
-    tab1, tab2 = st.tabs(["View Leaderboards", "Global Stats"])
+    tab1, tab2, tab3 = st.tabs(["View Leaderboards", "Create Leaderboard", "Global Stats"])
     
     with tab1:
         st.subheader("Game Leaderboards")
         
+        # Add refresh button
+        col_refresh = st.columns([10, 1])[1]
+        with col_refresh:
+            if st.button("🔄 Refresh", use_container_width=True, key="refresh_lb"):
+                st.rerun()
+        
         games = make_request("GET", "/games", params={"limit": 100})
         if games:
             game_options = {g.get("title", "Unknown"): str(g.get("_id", "")) for g in games}
-            selected_game = st.selectbox("Select Game", list(game_options.keys()))
+            selected_game = st.selectbox("Select Game", list(game_options.keys()), key="view_lb_game")
             
             if selected_game:
                 game_id = game_options[selected_game]
+                
+                # Add type and timeframe selectors
+                col1, col2 = st.columns(2)
+                with col1:
+                    leaderboard_type = st.selectbox(
+                        "Leaderboard Type",
+                        ["Wins", "Kills", "XP", "Score", "Playtime"],
+                        key="view_lb_type"
+                    )
+                with col2:
+                    timeframe = st.selectbox(
+                        "Timeframe",
+                        ["All Time", "Monthly", "Weekly", "Daily"],
+                        key="view_lb_timeframe"
+                    )
+                
+                # Convert to API format
+                type_map = {
+                    "Wins": "wins",
+                    "Kills": "kills",
+                    "XP": "xp",
+                    "Score": "score",
+                    "Playtime": "playtime"
+                }
+                timeframe_map = {
+                    "All Time": "all_time",
+                    "Monthly": "monthly",
+                    "Weekly": "weekly",
+                    "Daily": "daily"
+                }
+                
+                api_type = type_map[leaderboard_type]
+                api_timeframe = timeframe_map[timeframe]
+                
                 leaderboard = make_request("GET", f"/leaderboards/game/{game_id}")
                 
                 if leaderboard:
@@ -362,11 +431,70 @@ def show_leaderboards():
                             fig = px.bar(df_lb.head(20), x="Player", y="Score", title=f"Top Players in {selected_game}")
                             st.plotly_chart(fig, use_container_width=True)
                     else:
-                        st.info("No leaderboard entries yet for this game")
+                        st.info("No entries yet in this leaderboard. Create entries by promoting player scores!")
                 else:
-                    st.info("No leaderboard data available yet")
+                    st.warning(f"❌ No leaderboard exists for {selected_game}")
+                    st.info("💡 Go to 'Create Leaderboard' tab to create one for this game!")
+        else:
+            st.info("No games available yet")
     
     with tab2:
+        st.subheader("Create New Leaderboard")
+        
+        games = make_request("GET", "/games", params={"limit": 100})
+        if games:
+            game_options = {g.get("title", "Unknown"): str(g.get("_id", "")) for g in games}
+            selected_game = st.selectbox("Select Game for Leaderboard", list(game_options.keys()), key="create_lb_game")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                leaderboard_type = st.selectbox(
+                    "Leaderboard Type",
+                    ["Wins", "Kills", "XP", "Score", "Playtime"],
+                    key="lb_type"
+                )
+            with col2:
+                timeframe = st.selectbox(
+                    "Timeframe",
+                    ["All Time", "Monthly", "Weekly", "Daily"],
+                    key="lb_timeframe"
+                )
+            
+            if st.button("Create Leaderboard", use_container_width=True):
+                if selected_game:
+                    game_id = game_options[selected_game]
+                    
+                    # Convert friendly names to API format
+                    type_map = {
+                        "Wins": "wins",
+                        "Kills": "kills",
+                        "XP": "xp",
+                        "Score": "score",
+                        "Playtime": "playtime"
+                    }
+                    timeframe_map = {
+                        "All Time": "all_time",
+                        "Monthly": "monthly",
+                        "Weekly": "weekly",
+                        "Daily": "daily"
+                    }
+                    
+                    lb_data = {
+                        "game_id": game_id,
+                        "leaderboard_type": type_map[leaderboard_type],
+                        "timeframe": timeframe_map[timeframe]
+                    }
+                    
+                    result = make_request("POST", "/leaderboards", data=lb_data)
+                    if result:
+                        st.success(f"✅ Leaderboard created for '{selected_game}'!")
+                        st.info(f"Type: {leaderboard_type} | Timeframe: {timeframe}")
+                    else:
+                        st.error("Failed to create leaderboard. It might already exist.")
+        else:
+            st.warning("No games available yet")
+    
+    with tab3:
         st.subheader("Global Statistics")
         
         all_players = make_request("GET", "/players", params={"limit": 100})
@@ -506,12 +634,16 @@ def show_matches():
                 if matches:
                     match_data = []
                     for match in matches[:20]:
+                        # Duration in seconds from API, convert to minutes
+                        duration_minutes = match.get('duration', 0) // 60 if match.get('duration') else 0
+                        
                         match_data.append({
-                            "Date": match.get("match_date", "N/A"),
+                            "Date": match.get("timestamp", "N/A"),
                             "Game": match.get("game_id", "N/A"),
-                            "Winner": match.get("winner_id", "N/A"),
-                            "Points": match.get("winning_points", 0),
-                            "Duration": f"{match.get('match_duration_seconds', 0) // 60} min"
+                            "Mode": match.get("game_mode", "N/A"),
+                            "Map": match.get("map_name", "N/A"),
+                            "Winner": match.get("winner_player_id", "N/A"),
+                            "Duration": f"{duration_minutes} min"
                         })
                     
                     if match_data:
@@ -534,12 +666,15 @@ def show_matches():
             if all_matches:
                 match_data = []
                 for match in all_matches[:20]:
+                    duration_minutes = match.get('duration', 0) // 60 if match.get('duration') else 0
+                    
                     match_data.append({
                         "Player": match.get("player_id", "N/A"),
-                        "Date": match.get("match_date", "N/A"),
+                        "Date": match.get("timestamp", "N/A"),
                         "Game": match.get("game_id", "N/A"),
-                        "Winner": match.get("winner_id", "N/A"),
-                        "Points": match.get("winning_points", 0)
+                        "Mode": match.get("game_mode", "N/A"),
+                        "Winner": match.get("winner_player_id", "N/A"),
+                        "Duration": f"{duration_minutes} min"
                     })
                 
                 df = pd.DataFrame(match_data)
@@ -551,17 +686,505 @@ def show_matches():
 
 
 # ==================== SOCIAL ====================
+
+# ==================== PLAYER STATS ====================
+def show_stats():
+    """Display and manage player stats"""
+    st.title("📊 Player Stats")
+    
+    tab1, tab2, tab3 = st.tabs(["View Stats", "Create Stats", "Update Stats"])
+    
+    all_players = make_request("GET", "/players", params={"limit": 100})
+    all_games = make_request("GET", "/games", params={"limit": 100})
+    
+    with tab1:
+        st.subheader("View Player Stats")
+        
+        if all_players:
+            selected_player = st.selectbox("Select Player", [p.get("username", "") for p in all_players], key="view_stats_player")
+            player = next((p for p in all_players if p.get("username") == selected_player), None)
+            
+            if player:
+                player_id = str(player.get("_id", ""))
+                stats_list = make_request("GET", f"/stats/{player_id}")
+                
+                if stats_list:
+                    st.dataframe(pd.DataFrame(stats_list), use_container_width=True)
+                else:
+                    st.info("No stats found for this player")
+    
+    with tab2:
+        st.subheader("Create Player Stats")
+        
+        if all_players and all_games:
+            col1, col2 = st.columns(2)
+            with col1:
+                selected_player = st.selectbox("Select Player", [p.get("username", "") for p in all_players], key="create_stats_player")
+            with col2:
+                selected_game = st.selectbox("Select Game", [g.get("title", "") for g in all_games], key="create_stats_game")
+            
+            if st.button("Create Stats", use_container_width=True):
+                player = next((p for p in all_players if p.get("username") == selected_player), None)
+                game = next((g for g in all_games if g.get("title") == selected_game), None)
+                
+                if player and game:
+                    data = {
+                        "player_id": str(player.get("_id", "")),
+                        "game_id": str(game.get("_id", ""))
+                    }
+                    result = make_request("POST", "/stats", data=data)
+                    if result:
+                        st.success(f"✅ Stats created for {selected_player} in {selected_game}!")
+                    else:
+                        st.error("Failed to create stats (might already exist)")
+    
+    with tab3:
+        st.subheader("Update Player Stats")
+        
+        if all_players and all_games:
+            col1, col2 = st.columns(2)
+            with col1:
+                selected_player = st.selectbox("Select Player", [p.get("username", "") for p in all_players], key="update_stats_player")
+            with col2:
+                selected_game = st.selectbox("Select Game", [g.get("title", "") for g in all_games], key="update_stats_game")
+            
+            player = next((p for p in all_players if p.get("username") == selected_player), None)
+            game = next((g for g in all_games if g.get("title") == selected_game), None)
+            
+            if player and game:
+                st.divider()
+                col_w, col_l, col_k, col_d = st.columns(4)
+                with col_w:
+                    wins = st.number_input("Wins to add", min_value=0, value=0)
+                with col_l:
+                    losses = st.number_input("Losses to add", min_value=0, value=0)
+                with col_k:
+                    kills = st.number_input("Kills to add", min_value=0, value=0)
+                with col_d:
+                    deaths = st.number_input("Deaths to add", min_value=0, value=0)
+                
+                col_x, col_lv = st.columns(2)
+                with col_x:
+                    xp = st.number_input("XP to add", min_value=0, value=0)
+                with col_lv:
+                    level = st.number_input("Level", min_value=1, value=1)
+                
+                if st.button("Update Stats", use_container_width=True):
+                    player_id = str(player.get("_id", ""))
+                    game_id = str(game.get("_id", ""))
+                    
+                    data = {
+                        "wins": wins if wins > 0 else None,
+                        "losses": losses if losses > 0 else None,
+                        "kills": kills if kills > 0 else None,
+                        "deaths": deaths if deaths > 0 else None,
+                        "xp": xp if xp > 0 else None,
+                        "level": level
+                    }
+                    data = {k: v for k, v in data.items() if v is not None}
+                    
+                    result = make_request("PATCH", f"/stats/{player_id}/{game_id}", data=data)
+                    if result:
+                        st.success(f"✅ Stats updated for {selected_player}!")
+
+
+# ==================== ADMIN PANEL ====================
+def show_admin_panel():
+    """Admin panel with all CRUD operations"""
+    st.title("⚙️ Admin Panel - CRUD Operations")
+    
+    st.info("🔧 Complete CRUD operations for all entities")
+    
+    tabs = st.tabs([
+        "Players", "Games", "Achievements", "Leaderboards",
+        "Matches", "Sessions", "Notifications", "Inventory"
+    ])
+    
+    with tabs[0]:  # Players
+        st.subheader("Player Management")
+        sub_tabs = st.tabs(["View All", "View One", "Update", "Delete", "Login"])
+        
+        all_players = make_request("GET", "/players", params={"limit": 100})
+        
+        with sub_tabs[0]:
+            if all_players:
+                st.dataframe(pd.DataFrame([{
+                    "Username": p.get("username"),
+                    "Level": p.get("level"),
+                    "Wins": p.get("total_wins"),
+                    "Losses": p.get("total_losses"),
+                    "Online": p.get("is_online")
+                } for p in all_players]), use_container_width=True)
+        
+        with sub_tabs[1]:
+            if all_players:
+                selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_view_player")
+                player = next((p for p in all_players if p.get("username") == selected), None)
+                if player:
+                    st.json({k: v for k, v in player.items() if k != "_id"})
+        
+        with sub_tabs[2]:
+            if all_players:
+                selected = st.selectbox("Select Player to Update", [p.get("username") for p in all_players], key="admin_update_player")
+                player = next((p for p in all_players if p.get("username") == selected), None)
+                
+                if player:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        new_level = st.number_input("New Level", min_value=1, max_value=100, value=player.get("level", 1))
+                    with col2:
+                        is_online = st.checkbox("Online Status", value=player.get("is_online", False))
+                    
+                    if st.button("Update Player", key="update_player_btn"):
+                        data = {"level": new_level, "is_online": is_online}
+                        result = make_request("PUT", f"/players/{str(player.get('_id'))}", data=data)
+                        if result:
+                            st.success("✅ Player updated!")
+        
+        with sub_tabs[3]:
+            if all_players:
+                selected = st.selectbox("Select Player to Delete", [p.get("username") for p in all_players], key="admin_delete_player")
+                player = next((p for p in all_players if p.get("username") == selected), None)
+                
+                if player:
+                    if st.button("🗑️ Delete Player", key="delete_player_btn", type="secondary"):
+                        result = make_request("DELETE", f"/players/{str(player.get('_id'))}")
+                        if result:
+                            st.success("✅ Player deleted!")
+                            st.rerun()
+        
+        with sub_tabs[4]:
+            if all_players:
+                selected = st.selectbox("Select Player to Login", [p.get("username") for p in all_players], key="admin_login_player")
+                player = next((p for p in all_players if p.get("username") == selected), None)
+                
+                if player:
+                    if st.button("📍 Record Login", key="login_btn"):
+                        result = make_request("POST", f"/players/{str(player.get('_id'))}/login")
+                        if result:
+                            st.success("✅ Login recorded!")
+    
+    with tabs[1]:  # Games
+        st.subheader("Game Management")
+        sub_tabs = st.tabs(["View All", "View One", "Update", "Delete"])
+        
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        
+        with sub_tabs[0]:
+            if all_games:
+                st.dataframe(pd.DataFrame([{
+                    "Title": g.get("title"),
+                    "Publisher": g.get("publisher"),
+                    "Max Players": g.get("max_players"),
+                    "Crossplay": g.get("crossplay_enabled"),
+                    "Genres": ", ".join(g.get("genres", []))
+                } for g in all_games]), use_container_width=True)
+        
+        with sub_tabs[1]:
+            if all_games:
+                selected = st.selectbox("Select Game", [g.get("title") for g in all_games], key="admin_view_game")
+                game = next((g for g in all_games if g.get("title") == selected), None)
+                if game:
+                    st.json({k: v for k, v in game.items() if k != "_id"})
+        
+        with sub_tabs[2]:
+            if all_games:
+                selected = st.selectbox("Select Game to Update", [g.get("title") for g in all_games], key="admin_update_game")
+                game = next((g for g in all_games if g.get("title") == selected), None)
+                
+                if game:
+                    new_max_players = st.number_input("Max Players", min_value=1, value=game.get("max_players", 4))
+                    crossplay = st.checkbox("Crossplay Enabled", value=game.get("crossplay_enabled", True))
+                    
+                    if st.button("Update Game", key="update_game_btn"):
+                        data = {"max_players": new_max_players, "crossplay_enabled": crossplay}
+                        result = make_request("PUT", f"/games/{str(game.get('_id'))}", data=data)
+                        if result:
+                            st.success("✅ Game updated!")
+        
+        with sub_tabs[3]:
+            if all_games:
+                selected = st.selectbox("Select Game to Delete", [g.get("title") for g in all_games], key="admin_delete_game")
+                game = next((g for g in all_games if g.get("title") == selected), None)
+                
+                if game:
+                    if st.button("🗑️ Delete Game", key="delete_game_btn", type="secondary"):
+                        result = make_request("DELETE", f"/games/{str(game.get('_id'))}")
+                        if result:
+                            st.success("✅ Game deleted!")
+                            st.rerun()
+    
+    with tabs[2]:  # Achievements
+        st.subheader("Achievement Management")
+        
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        
+        if all_games:
+            selected_game = st.selectbox("Select Game", [g.get("title") for g in all_games], key="admin_ach_game")
+            game = next((g for g in all_games if g.get("title") == selected_game), None)
+            
+            if game:
+                game_id = str(game.get("_id"))
+                
+                # Achievement sub-tabs
+                ach_tabs = st.tabs(["View All", "Create New", "Update", "Delete"])
+                
+                # View All achievements
+                with ach_tabs[0]:
+                    achievements = make_request("GET", f"/achievements/game/{game_id}")
+                    
+                    if achievements:
+                        st.write(f"**Total Achievements:** {len(achievements)}")
+                        
+                        for ach in achievements[:20]:
+                            with st.expander(f"📌 {ach.get('name')}"):
+                                col1, col2, col3, col4 = st.columns(4)
+                                with col1:
+                                    st.caption(f"**Description:** {ach.get('description', 'N/A')}")
+                                with col2:
+                                    st.caption(f"**XP Reward:** {ach.get('xp_reward', 0)}")
+                                with col3:
+                                    st.caption(f"**Rarity:** {ach.get('rarity', 'N/A')}")
+                                with col4:
+                                    st.caption(f"**ID:** {str(ach.get('_id', 'N/A'))[:8]}...")
+                    else:
+                        st.info("No achievements yet for this game")
+                
+                # Create new achievement
+                with ach_tabs[1]:
+                    st.subheader("Create New Achievement")
+                    
+                    with st.form("create_achievement_form"):
+                        name = st.text_input("Achievement Name", placeholder="e.g., First Blood")
+                        description = st.text_area("Description", placeholder="Describe the achievement", height=80)
+                        
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            xp_reward = st.number_input("XP Reward", min_value=0, max_value=10000, value=100)
+                        with col2:
+                            rarity = st.selectbox("Rarity", ["Common", "Rare", "Epic", "Legendary"])
+                        with col3:
+                            unlock_condition = st.text_input("Unlock Condition", placeholder="e.g., Get 5 kills")
+                        
+                        submitted = st.form_submit_button("✅ Create Achievement", use_container_width=True)
+                        
+                        if submitted:
+                            if not name or not description:
+                                st.error("Name and Description are required!")
+                            else:
+                                ach_data = {
+                                    "game_id": game_id,
+                                    "name": name,
+                                    "description": description,
+                                    "xp_reward": xp_reward,
+                                    "rarity": rarity.lower(),
+                                    "unlock_condition": unlock_condition if unlock_condition else None
+                                }
+                                
+                                result = make_request("POST", "/achievements", data=ach_data)
+                                if result:
+                                    st.success(f"✅ Achievement '{name}' created!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to create achievement")
+                
+                # Update achievement
+                with ach_tabs[2]:
+                    st.subheader("Update Achievement")
+                    
+                    achievements = make_request("GET", f"/achievements/game/{game_id}")
+                    if achievements:
+                        selected_ach = st.selectbox(
+                            "Select Achievement to Update",
+                            [a.get("name") for a in achievements],
+                            key="update_ach_select"
+                        )
+                        
+                        achievement = next((a for a in achievements if a.get("name") == selected_ach), None)
+                        if achievement:
+                            with st.form("update_achievement_form"):
+                                name = st.text_input("Achievement Name", value=achievement.get("name", ""))
+                                description = st.text_area("Description", value=achievement.get("description", ""), height=80)
+                                
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    xp_reward = st.number_input(
+                                        "XP Reward",
+                                        min_value=0,
+                                        max_value=10000,
+                                        value=achievement.get("xp_reward", 100)
+                                    )
+                                with col2:
+                                    current_rarity = achievement.get("rarity", "common").capitalize()
+                                    rarity = st.selectbox("Rarity", ["Common", "Rare", "Epic", "Legendary"], index=["Common", "Rare", "Epic", "Legendary"].index(current_rarity) if current_rarity in ["Common", "Rare", "Epic", "Legendary"] else 0)
+                                with col3:
+                                    unlock_condition = st.text_input("Unlock Condition", value=achievement.get("unlock_condition", ""))
+                                
+                                submitted = st.form_submit_button("✅ Update Achievement", use_container_width=True)
+                                
+                                if submitted:
+                                    ach_id = str(achievement.get("_id"))
+                                    ach_data = {
+                                        "name": name,
+                                        "description": description,
+                                        "xp_reward": xp_reward,
+                                        "rarity": rarity.lower(),
+                                        "unlock_condition": unlock_condition if unlock_condition else None
+                                    }
+                                    
+                                    result = make_request("PUT", f"/achievements/{ach_id}", data=ach_data)
+                                    if result:
+                                        st.success(f"✅ Achievement updated!")
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to update achievement")
+                    else:
+                        st.info("No achievements to update")
+                
+                # Delete achievement
+                with ach_tabs[3]:
+                    st.subheader("Delete Achievement")
+                    
+                    achievements = make_request("GET", f"/achievements/game/{game_id}")
+                    if achievements:
+                        selected_ach = st.selectbox(
+                            "Select Achievement to Delete",
+                            [a.get("name") for a in achievements],
+                            key="delete_ach_select"
+                        )
+                        
+                        achievement = next((a for a in achievements if a.get("name") == selected_ach), None)
+                        if achievement:
+                            st.warning(f"⚠️ This will permanently delete '{selected_ach}'")
+                            
+                            if st.button("🗑️ Delete Achievement", type="secondary", use_container_width=True):
+                                ach_id = str(achievement.get("_id"))
+                                result = make_request("DELETE", f"/achievements/{ach_id}")
+                                if result:
+                                    st.success("✅ Achievement deleted!")
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete achievement")
+                    else:
+                        st.info("No achievements to delete")
+    
+    with tabs[3]:  # Leaderboards
+        st.subheader("Leaderboard Management")
+        
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        if all_games:
+            selected_game = st.selectbox("Select Game", [g.get("title") for g in all_games], key="admin_lb_game")
+            game = next((g for g in all_games if g.get("title") == selected_game), None)
+            
+            if game:
+                game_id = str(game.get("_id"))
+                lb = make_request("GET", f"/leaderboards/game/{game_id}")
+                
+                if lb:
+                    st.write(f"**Type:** {lb.get('leaderboard_type')} | **Timeframe:** {lb.get('timeframe')}")
+                    st.write(f"**Entries:** {len(lb.get('entries', []))}")
+                else:
+                    st.warning("No leaderboard for this game")
+    
+    with tabs[4]:  # Matches
+        st.subheader("Match Management")
+        
+        all_players = make_request("GET", "/players", params={"limit": 100})
+        if all_players:
+            selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_matches_player")
+            player = next((p for p in all_players if p.get("username") == selected), None)
+            
+            if player:
+                matches = make_request("GET", f"/matches/player/{str(player.get('_id'))}")
+                if matches:
+                    duration_minutes = [m.get('duration', 0) // 60 if m.get('duration') else 0 for m in matches[:10]]
+                    df_matches = pd.DataFrame([{
+                        "Date": m.get("timestamp"),
+                        "Game": m.get("game_id"),
+                        "Mode": m.get("game_mode"),
+                        "Winner": m.get("winner_player_id"),
+                        "Duration": f"{duration_minutes[i]} min"
+                    } for i, m in enumerate(matches[:10])])
+                    st.dataframe(df_matches, use_container_width=True)
+                else:
+                    st.info("No matches found")
+    
+    with tabs[5]:  # Sessions
+        st.subheader("Game Session Management")
+        
+        all_players = make_request("GET", "/players", params={"limit": 100})
+        if all_players:
+            selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_sessions_player")
+            player = next((p for p in all_players if p.get("username") == selected), None)
+            
+            if player:
+                sessions = make_request("GET", f"/sessions/active/{str(player.get('_id'))}")
+                if sessions:
+                    st.dataframe(pd.DataFrame(sessions[:10]), use_container_width=True)
+                else:
+                    st.info("No active sessions")
+    
+    with tabs[6]:  # Notifications
+        st.subheader("Notification Management")
+        
+        all_players = make_request("GET", "/players", params={"limit": 100})
+        if all_players:
+            selected = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_notif_player")
+            player = next((p for p in all_players if p.get("username") == selected), None)
+            
+            if player:
+                notifs = make_request("GET", f"/notifications/player/{str(player.get('_id'))}")
+                if notifs:
+                    for notif in notifs[:10]:
+                        with st.container():
+                            col1, col2 = st.columns([4, 1])
+                            with col1:
+                                st.write(notif.get("title", "Notification"))
+                                st.caption(notif.get("message", ""))
+                            with col2:
+                                if st.button("🗑️", key=f"delete_notif_{notif.get('_id')}"):
+                                    result = make_request("DELETE", f"/notifications/{str(notif.get('_id'))}")
+                                    if result:
+                                        st.rerun()
+                else:
+                    st.info("No notifications")
+    
+    with tabs[7]:  # Inventory
+        st.subheader("Player Inventory Management")
+        
+        all_players = make_request("GET", "/players", params={"limit": 100})
+        all_games = make_request("GET", "/games", params={"limit": 100})
+        
+        if all_players and all_games:
+            col1, col2 = st.columns(2)
+            with col1:
+                selected_player = st.selectbox("Select Player", [p.get("username") for p in all_players], key="admin_inv_player")
+            with col2:
+                selected_game = st.selectbox("Select Game", [g.get("title") for g in all_games], key="admin_inv_game")
+            
+            player = next((p for p in all_players if p.get("username") == selected_player), None)
+            game = next((g for g in all_games if g.get("title") == selected_game), None)
+            
+            if player and game:
+                inventory = make_request("GET", f"/inventory/{str(player.get('_id'))}/{str(game.get('_id'))}")
+                if inventory:
+                    st.write(f"**Currency:** {inventory.get('currency', 0)}")
+                    if inventory.get("items"):
+                        st.dataframe(pd.DataFrame(inventory.get("items", [])))
+
+
+# ==================== SOCIAL ====================
 def show_social():
-    """Display social features"""
-    st.title("👫 Social Features")
     
     tab1, tab2, tab3 = st.tabs(["Friends", "Messaging", "Clans"])
     
     with tab1:
         st.subheader("Friend Management")
         
+        st.info("ℹ️ **Note:** Friend features require Neo4j to be running. Make sure Neo4j is connected to use this feature.")
+        
         all_players = make_request("GET", "/players", params={"limit": 100})
-        if all_players:
+        if all_players and len(all_players) > 1:
             col1, col2 = st.columns(2)
             with col1:
                 player1 = st.selectbox(
@@ -570,13 +1193,19 @@ def show_social():
                     key="friend_player1"
                 )
             with col2:
-                player2 = st.selectbox(
-                    "Add as Friend",
-                    [p.get("username", "") for p in all_players if p.get("username") != player1],
-                    key="friend_player2"
-                )
+                # Filter out player1 from the list
+                other_players = [p.get("username", "") for p in all_players if p.get("username") != player1]
+                if other_players:
+                    player2 = st.selectbox(
+                        "Add as Friend",
+                        other_players,
+                        key="friend_player2"
+                    )
+                else:
+                    st.warning("No other players available to add as friends")
+                    player2 = None
             
-            if st.button("Add Friend", use_container_width=True):
+            if player2 and st.button("Add Friend", use_container_width=True):
                 p1 = next((p for p in all_players if p.get("username") == player1), None)
                 p2 = next((p for p in all_players if p.get("username") == player2), None)
                 
@@ -589,12 +1218,20 @@ def show_social():
                     result = make_request("POST", "/friends", data=data)
                     if result:
                         st.success(f"✅ {player2} added as friend!")
+                    else:
+                        st.error("❌ Failed to add friend. Make sure Neo4j is running and player nodes are created.")
+        elif all_players and len(all_players) == 1:
+            st.warning("⚠️ Only one player exists. Create more players to add friends!")
+        else:
+            st.warning("No players available. Create players first!")
     
     with tab2:
         st.subheader("Send Message")
         
+        st.info("ℹ️ **Note:** Messaging features require Neo4j to be running. Make sure Neo4j is connected to use this feature.")
+        
         all_players = make_request("GET", "/players", params={"limit": 100})
-        if all_players:
+        if all_players and len(all_players) > 1:
             col1, col2 = st.columns(2)
             with col1:
                 sender = st.selectbox(
@@ -603,15 +1240,20 @@ def show_social():
                     key="msg_sender"
                 )
             with col2:
-                recipient = st.selectbox(
-                    "To Player",
-                    [p.get("username", "") for p in all_players if p.get("username") != sender],
-                    key="msg_recipient"
-                )
+                other_players = [p.get("username", "") for p in all_players if p.get("username") != sender]
+                if other_players:
+                    recipient = st.selectbox(
+                        "To Player",
+                        other_players,
+                        key="msg_recipient"
+                    )
+                else:
+                    st.warning("No other players available to message")
+                    recipient = None
             
             message = st.text_area("Message", placeholder="Enter your message", height=100)
             
-            if st.button("Send Message", use_container_width=True):
+            if recipient and st.button("Send Message", use_container_width=True):
                 sender_p = next((p for p in all_players if p.get("username") == sender), None)
                 recipient_p = next((p for p in all_players if p.get("username") == recipient), None)
                 
@@ -625,10 +1267,19 @@ def show_social():
                     result = make_request("POST", "/messages", data=data)
                     if result:
                         st.success(f"✅ Message sent to {recipient}!")
+                    else:
+                        st.error("❌ Failed to send message. Make sure Neo4j is running.")
+        elif all_players and len(all_players) == 1:
+            st.warning("⚠️ Only one player exists. Create more players to send messages!")
+        else:
+            st.warning("No players available. Create players first!")
     
     with tab3:
         st.subheader("Clan Management")
-        st.info("Clan features will be implemented in the next update!")
+        st.info("🏢 **Clan Features** - Requires Neo4j\n\n"
+                "Clans allow players to form organizations and guilds. "
+                "Features include clan chat, member management, clan wars, and more.\n\n"
+                "⚠️ Make sure Neo4j is running to use clan features.")
 
 
 # ==================== MAIN APP ====================
@@ -639,7 +1290,7 @@ def main():
     
     page = st.sidebar.radio(
         "Navigation",
-        ["Dashboard", "Players", "Games", "Leaderboards", "Achievements", "Matches", "Social"]
+        ["Dashboard", "Players", "Games", "Stats", "Leaderboards", "Achievements", "Matches", "Social", "Admin Panel"]
     )
     
     st.sidebar.divider()
@@ -657,6 +1308,8 @@ def main():
         show_players()
     elif page == "Games":
         show_games()
+    elif page == "Stats":
+        show_stats()
     elif page == "Leaderboards":
         show_leaderboards()
     elif page == "Achievements":
@@ -665,6 +1318,8 @@ def main():
         show_matches()
     elif page == "Social":
         show_social()
+    elif page == "Admin Panel":
+        show_admin_panel()
 
 
 if __name__ == "__main__":
