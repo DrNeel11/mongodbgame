@@ -1112,7 +1112,7 @@ def show_admin_panel():
                         timeframe_map = {"All Time": "all_time", "Monthly": "monthly", "Weekly": "weekly", "Daily": "daily"}
                         
                         params = {
-                            "leaderboard_type": type_map[view_type],
+                            "git _type": type_map[view_type],
                             "timeframe": timeframe_map[view_timeframe]
                         }
                         
@@ -1303,7 +1303,7 @@ def show_admin_panel():
                 player_id = str(player.get('_id'))
                 
                 # Match sub-tabs
-                match_tabs = st.tabs(["View All", "Create Match", "Update", "Delete"])
+                match_tabs = st.tabs(["View All", "Create Match", "Delete"])
                 
                 # View All matches
                 with match_tabs[0]:
@@ -1376,63 +1376,13 @@ def show_admin_panel():
                     else:
                         st.warning("No games available")
                 
-                # Update match
-                with match_tabs[2]:
-                    st.subheader("Update Match")
-                    
-                    matches = make_request("GET", f"/matches/player/{player_id}")
-                    if matches:
-                        # Select match by timestamp
-                        match_options = {f"{m.get('timestamp', 'Unknown')} - {m.get('game_mode', 'N/A')}": m for m in matches[:20]}
-                        selected_match_key = st.selectbox(
-                            "Select Match to Update",
-                            list(match_options.keys()),
-                            key="update_match_select"
-                        )
-                        
-                        match_to_update = match_options[selected_match_key]
-                        match_id = str(match_to_update.get("_id"))
-                        
-                        if all_games:
-                            with st.form("update_match_form"):
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    game_mode = st.text_input("Game Mode", value=match_to_update.get("game_mode", ""))
-                                with col2:
-                                    map_name = st.text_input("Map Name", value=match_to_update.get("map_name", ""))
-                                
-                                col3, col4 = st.columns(2)
-                                with col3:
-                                    duration = st.number_input("Duration (seconds)", min_value=1, value=match_to_update.get("duration", 3600))
-                                with col4:
-                                    winner_id = st.text_input("Winner Player ID", value=match_to_update.get("winner_player_id", ""))
-                                
-                                submitted = st.form_submit_button("✅ Update Match", use_container_width=True)
-                                
-                                if submitted:
-                                    match_data = {
-                                        "game_mode": game_mode,
-                                        "map_name": map_name,
-                                        "duration": duration,
-                                        "winner_player_id": winner_id if winner_id else None
-                                    }
-                                    
-                                    result = make_request("PUT", f"/matches/{match_id}", data=match_data)
-                                    if result:
-                                        st.success("✅ Match updated!")
-                                        st.rerun()
-                                    else:
-                                        st.error("Failed to update match")
-                    else:
-                        st.info("No matches to update")
-                
                 # Delete match
-                with match_tabs[3]:
+                with match_tabs[2]:
                     st.subheader("Delete Match")
                     
                     matches = make_request("GET", f"/matches/player/{player_id}")
                     if matches:
-                        match_options = {f"{m.get('timestamp', 'Unknown')} - {m.get('game_mode', 'N/A')}": m for m in matches[:20]}
+                        match_options = {f"{m.get('timestamp', 'Unknown')} - {m.get('game_mode', 'N/A')}" : m for m in matches[:20]}
                         selected_match_key = st.selectbox(
                             "Select Match to Delete",
                             list(match_options.keys()),
@@ -1468,7 +1418,7 @@ def show_admin_panel():
                 player_id = str(player.get('_id'))
                 
                 # Session sub-tabs
-                session_tabs = st.tabs(["View Active", "Create Session", "Update", "End Session"])
+                session_tabs = st.tabs(["View Active", "Create Session", "End Session"])
                 
                 # View Active Sessions
                 with session_tabs[0]:
@@ -1529,68 +1479,11 @@ def show_admin_panel():
                     else:
                         st.warning("No games available")
                 
-                # Update Session
-                with session_tabs[2]:
-                    st.subheader("Update Session")
-                    
-                    sessions = make_request("GET", f"/sessions/active/{player_id}", show_error=False)
-                    if sessions:
-                        session_options = {f"{s.get('game_id', 'Unknown')} - Started: {s.get('started_at', 'N/A')[:10]}": s for s in sessions[:20]}
-                        selected_session_key = st.selectbox(
-                            "Select Session to Update",
-                            list(session_options.keys()),
-                            key="update_session_select"
-                        )
-                        
-                        session_to_update = session_options[selected_session_key]
-                        session_id = str(session_to_update.get("_id"))
-                        
-                        with st.form("update_session_form"):
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                level = st.number_input(
-                                    "Level",
-                                    min_value=1,
-                                    max_value=100,
-                                    value=session_to_update.get("level", 1)
-                                )
-                            with col2:
-                                status_options = ["active", "paused", "inactive"]
-                                current_status = session_to_update.get("status", "active")
-                                status = st.selectbox(
-                                    "Status",
-                                    status_options,
-                                    index=status_options.index(current_status) if current_status in status_options else 0
-                                )
-                            
-                            mode = st.text_input(
-                                "Game Mode",
-                                value=session_to_update.get("mode", "")
-                            )
-                            
-                            submitted = st.form_submit_button("✅ Update Session", use_container_width=True)
-                            
-                            if submitted:
-                                session_data = {
-                                    "level": level,
-                                    "status": status,
-                                    "mode": mode
-                                }
-                                
-                                result = make_request("PUT", f"/sessions/{session_id}", data=session_data)
-                                if result:
-                                    st.success("✅ Session updated!")
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to update session")
-                    else:
-                        st.info("No sessions to update")
-                
                 # End/Delete Session
-                with session_tabs[3]:
+                with session_tabs[2]:
                     st.subheader("End Session")
                     
-                    sessions = make_request("GET", f"/sessions/active/{player_id}")
+                    sessions = make_request("GET", f"/sessions/active/{player_id}", show_error=False)
                     if sessions:
                         session_options = {f"{s.get('game_id', 'Unknown')} - Started: {s.get('started_at', 'N/A')[:10]}": s for s in sessions[:20]}
                         selected_session_key = st.selectbox(
@@ -1605,7 +1498,7 @@ def show_admin_panel():
                         st.warning(f"⚠️ This will end the active session")
                         
                         if st.button("🛑 End Session", type="secondary", use_container_width=True):
-                            result = make_request("DELETE", f"/sessions/{session_id}")
+                            result = make_request("POST", f"/sessions/{session_id}/end")
                             if result:
                                 st.success("✅ Session ended!")
                                 st.rerun()
