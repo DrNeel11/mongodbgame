@@ -111,15 +111,6 @@ app.include_router(sessions_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(inventory_router, prefix="/api/v1")
 
-# Neo4j Routes
-app.include_router(player_nodes_router, prefix="/api/v1")
-app.include_router(friends_router, prefix="/api/v1")
-app.include_router(blocking_router, prefix="/api/v1")
-app.include_router(messaging_router, prefix="/api/v1")
-app.include_router(party_router, prefix="/api/v1")
-app.include_router(clan_router, prefix="/api/v1")
-app.include_router(follow_router, prefix="/api/v1")
-
 
 @app.get("/", tags=["Root"])
 async def root():
