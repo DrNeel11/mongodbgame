@@ -2,17 +2,27 @@
 Multiplayer Gaming System - Streamlit Frontend
 """
 
+import os
+from dotenv import load_dotenv
 import streamlit as st
 import requests
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+try:
+    import pandas as pd
+except Exception:
+    pd = None
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except Exception:
+    px = None
+    go = None
 from datetime import datetime
 from typing import List, Dict, Optional
 import json
 
 # Configuration
-API_BASE_URL = "http://localhost:8000/api/v1"
+load_dotenv()
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
 # Page configuration
 st.set_page_config(
@@ -41,6 +51,33 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
+# Compatibility wrappers for environments without pandas/plotly
+_original_st_dataframe = st.dataframe
+def _safe_dataframe(data, *args, **kwargs):
+    if pd is not None:
+        try:
+            return _original_st_dataframe(data, *args, **kwargs)
+        except Exception:
+            pass
+    if isinstance(data, (list, tuple)):
+        st.table(data)
+    else:
+        try:
+            st.write(data)
+        except Exception:
+            pass
+st.dataframe = _safe_dataframe
+
+_original_plotly_chart = st.plotly_chart
+def _safe_plotly_chart(fig, *args, **kwargs):
+    if px is not None and go is not None:
+        try:
+            return _original_plotly_chart(fig, *args, **kwargs)
+        except Exception:
+            pass
+    st.info("Plot unavailable (plotly not installed)")
+st.plotly_chart = _safe_plotly_chart
 
 # Helper functions
 def make_request(method: str, endpoint: str, data: Optional[Dict] = None, params: Optional[Dict] = None, show_error: bool = True):

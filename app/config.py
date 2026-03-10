@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     neo4j_user: str = "neo4j"
     neo4j_password: str = "password"
     
-    class Config:
-        env_file = ".env"
+    # Allow extra environment variables (so frontend .env entries don't break startup)
+    model_config = {"env_file": ".env", "extra": "allow"}
 
 
 @lru_cache()

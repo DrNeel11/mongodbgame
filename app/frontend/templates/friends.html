@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+  <h2>Friends for {{ player_id }}</h2>
+  <ul>
+    {% for f in friends %}
+      <li>{{ f.get('username') or f.get('player_id') }}</li>
+    {% else %}
+      <li>No friends</li>
+    {% endfor %}
+  </ul>
+{% endblock %}

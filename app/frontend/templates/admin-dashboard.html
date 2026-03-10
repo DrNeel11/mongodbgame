@@ -1,0 +1,1099 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - GameBD</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        .method-get { @apply bg-blue-100 text-blue-800; }
+        .method-post { @apply bg-green-100 text-green-800; }
+        .method-put { @apply bg-yellow-100 text-yellow-800; }
+        .method-patch { @apply bg-cyan-100 text-cyan-800; }
+        .method-delete { @apply bg-red-100 text-red-800; }
+        .command-card { @apply bg-white rounded-lg border border-gray-200 p-4 mb-4; }
+        .response-success { @apply bg-green-50 border-green-200 text-green-800; }
+        .response-error { @apply bg-red-50 border-red-200 text-red-800; }
+        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .tab-active { @apply bg-blue-600 text-white; }
+        .tab-inactive { @apply bg-gray-200 text-gray-700 hover:bg-gray-300; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 shadow-lg">
+            <div class="max-w-7xl mx-auto">
+                <h1 class="text-3xl font-bold mb-2">🎮 GameBD Admin Dashboard</h1>
+                <p class="text-blue-100">Manage all MongoDB & Neo4j commands directly</p>
+            </div>
+        </header>
+
+        <!-- View Toggle -->
+        <div class="bg-white border-b border-gray-200">
+            <div class="max-w-7xl mx-auto px-6 py-4 flex gap-4">
+                <button class="px-6 py-2 rounded-lg font-semibold tab-active" id="adminTab">
+                    🔧 Admin View
+                </button>
+                <button class="px-6 py-2 rounded-lg font-semibold tab-inactive" id="playerTab">
+                    👤 Player View
+                </button>
+            </div>
+        </div>
+
+        <!-- Admin View -->
+        <div id="adminView" class="block">
+            <div class="max-w-7xl mx-auto px-6 py-8">
+                <!-- Database Toggle -->
+                <div class="flex gap-4 mb-8">
+                    <button class="px-6 py-2 rounded-lg font-semibold bg-green-600 text-white hover:bg-green-700" id="mongodbBtn">
+                        🍃 MongoDB Commands
+                    </button>
+                    <button class="px-6 py-2 rounded-lg font-semibold bg-gray-300 text-gray-700 hover:bg-gray-400" id="neo4jBtn">
+                        🔗 Neo4j Commands
+                    </button>
+                </div>
+
+                <!-- MongoDB Section -->
+                <div id="mongodbSection" class="space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">MongoDB Operations</h2>
+                    
+                    <!-- Players Commands -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-blue-500">📊 Players</h3>
+                        
+                        <!-- Get All Players -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get All Players</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <p class="text-gray-600 text-sm mb-3">Retrieve list of players with pagination</p>
+                            <div class="space-y-2 mb-3">
+                                <input type="number" placeholder="Skip (default: 0)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getPlayers" data-param="skip" value="0">
+                                <input type="number" placeholder="Limit (default: 20)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getPlayers" data-param="limit" value="20">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getPlayers">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Create Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Player</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Username" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayer" data-param="username">
+                                <input type="email" placeholder="Email" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayer" data-param="email">
+                                <input type="number" placeholder="Level (default: 1)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayer" data-param="level" value="1">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Player by ID -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Player by ID</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getPlayer" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Update Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Update Player</h4>
+                                <span class="method-patch px-3 py-1 rounded text-sm font-semibold">PATCH</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="updatePlayer" data-param="player_id">
+                                <input type="number" placeholder="Level" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="updatePlayer" data-param="level">
+                                <input type="number" placeholder="XP" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="updatePlayer" data-param="xp">
+                            </div>
+                            <button class="cmd-btn w-full bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700" data-cmd="updatePlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Delete Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Delete Player</h4>
+                                <span class="method-delete px-3 py-1 rounded text-sm font-semibold">DELETE</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="deletePlayer" data-param="player_id">
+                            <button class="cmd-btn w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" data-cmd="deletePlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Games Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-blue-500">🎮 Games</h3>
+
+                        <!-- Get All Games -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get All Games</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="number" placeholder="Skip (default: 0)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getGames" data-param="skip" value="0">
+                                <input type="number" placeholder="Limit (default: 20)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getGames" data-param="limit" value="20">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getGames">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Create Game -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Game</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Title" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createGame" data-param="title">
+                                <input type="text" placeholder="Genre" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createGame" data-param="genre">
+                                <input type="number" placeholder="Max Players" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createGame" data-param="max_players">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createGame">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Stats Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-blue-500">📈 Player Stats</h3>
+
+                        <!-- Get Player Stats -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Player Stats</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getStats" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getStats">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Create Stats -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Player Stats</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createStats" data-param="player_id">
+                                <input type="number" placeholder="Wins" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createStats" data-param="wins" value="0">
+                                <input type="number" placeholder="Losses" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createStats" data-param="losses" value="0">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createStats">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-blue-500">🏆 Leaderboards</h3>
+
+                        <!-- Get Leaderboard -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Leaderboard</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="number" placeholder="Limit (default: 50)" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getLeaderboard" data-param="limit" value="50">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getLeaderboard">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Neo4j Section -->
+                <div id="neo4jSection" class="hidden space-y-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Neo4j Graph Operations</h2>
+
+                    <!-- Player Nodes Commands -->
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">👤 Player Nodes</h3>
+
+                        <!-- Create Player Node -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Player Node</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayerNode" data-param="player_id">
+                                <input type="text" placeholder="Username" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayerNode" data-param="username">
+                                <select class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createPlayerNode" data-param="status">
+                                    <option value="online">Online</option>
+                                    <option value="offline">Offline</option>
+                                    <option value="away">Away</option>
+                                </select>
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createPlayerNode">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Player Node -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Player Node</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getPlayerNode" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getPlayerNode">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Update Player Status -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Update Player Status</h4>
+                                <span class="method-patch px-3 py-1 rounded text-sm font-semibold">PATCH</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="updatePlayerStatus" data-param="player_id">
+                                <select class="cmd-input w-full px-3 py-2 border rounded" data-cmd="updatePlayerStatus" data-param="status">
+                                    <option value="online">Online</option>
+                                    <option value="offline">Offline</option>
+                                    <option value="away">Away</option>
+                                </select>
+                            </div>
+                            <button class="cmd-btn w-full bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700" data-cmd="updatePlayerStatus">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Friends Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">👥 Friends</h3>
+
+                        <!-- Send Friend Request -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Send Friend Request</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="From Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendFriendRequest" data-param="from_player_id">
+                                <input type="text" placeholder="To Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendFriendRequest" data-param="to_player_id">
+                                <input type="text" placeholder="Message (optional)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendFriendRequest" data-param="message">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="sendFriendRequest">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Accept Friend Request -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Accept Friend Request</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="From Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="acceptFriendRequest" data-param="from_player_id">
+                                <input type="text" placeholder="To Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="acceptFriendRequest" data-param="to_player_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="acceptFriendRequest">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Friends List -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Friends List</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getFriends" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getFriends">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Pending Requests -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Pending Requests</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getPendingRequests" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getPendingRequests">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Mutual Friends -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Mutual Friends</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player 1 ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getMutualFriends" data-param="player1_id">
+                                <input type="text" placeholder="Player 2 ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getMutualFriends" data-param="player2_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getMutualFriends">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Friend Suggestions -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Friend Suggestions</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getFriendSuggestions" data-param="player_id">
+                                <input type="number" placeholder="Limit (default: 10)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getFriendSuggestions" data-param="limit" value="10">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getFriendSuggestions">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Remove Friend -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Remove Friend</h4>
+                                <span class="method-delete px-3 py-1 rounded text-sm font-semibold">DELETE</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="removeFriend" data-param="player_id">
+                                <input type="text" placeholder="Friend ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="removeFriend" data-param="friend_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" data-cmd="removeFriend">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Blocking Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">🚫 Blocking</h3>
+
+                        <!-- Block Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Block Player</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Blocker ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="blockPlayer" data-param="blocker_id">
+                                <input type="text" placeholder="Blocked ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="blockPlayer" data-param="blocked_id">
+                                <input type="text" placeholder="Reason (optional)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="blockPlayer" data-param="reason">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="blockPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Blocked Players -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Blocked Players</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getBlockedPlayers" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getBlockedPlayers">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Unblock Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Unblock Player</h4>
+                                <span class="method-delete px-3 py-1 rounded text-sm font-semibold">DELETE</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Blocker ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="unblockPlayer" data-param="blocker_id">
+                                <input type="text" placeholder="Blocked ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="unblockPlayer" data-param="blocked_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" data-cmd="unblockPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Messaging Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">💬 Messaging</h3>
+
+                        <!-- Create Conversation -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Conversation</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <select class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createConversation" data-param="type">
+                                    <option value="private">Private</option>
+                                    <option value="group">Group</option>
+                                </select>
+                                <textarea placeholder="Participant IDs (comma-separated)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createConversation" data-param="participants" rows="2"></textarea>
+                                <input type="text" placeholder="Conversation Name (optional)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createConversation" data-param="name">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createConversation">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Send Message -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Send Message</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Conversation ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendMessage" data-param="conversation_id">
+                                <input type="text" placeholder="Sender ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendMessage" data-param="sender_id">
+                                <textarea placeholder="Message Content" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendMessage" data-param="content" rows="2"></textarea>
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="sendMessage">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Conversations -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Conversations</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getConversations" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getConversations">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Messages -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Messages</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Conversation ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getMessages" data-param="conversation_id">
+                                <input type="number" placeholder="Limit (default: 50)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getMessages" data-param="limit" value="50">
+                                <input type="number" placeholder="Offset (default: 0)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getMessages" data-param="offset" value="0">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getMessages">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Parties Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">🎯 Parties</h3>
+
+                        <!-- Create Party -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Party</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Leader ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createParty" data-param="leader_id">
+                                <input type="text" placeholder="Game ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createParty" data-param="game_id">
+                                <input type="number" placeholder="Max Size" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createParty" data-param="max_size" value="4">
+                                <select class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createParty" data-param="is_public">
+                                    <option value="true">Public</option>
+                                    <option value="false">Private</option>
+                                </select>
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createParty">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Party -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Party</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Party ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getParty" data-param="party_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getParty">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Join Party -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Join Party</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Party ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="joinParty" data-param="party_id">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="joinParty" data-param="player_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="joinParty">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Clans Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">🏰 Clans</h3>
+
+                        <!-- Create Clan -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Create Clan</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Clan Name" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createClan" data-param="name">
+                                <input type="text" placeholder="Clan Tag" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createClan" data-param="tag">
+                                <input type="text" placeholder="Owner ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createClan" data-param="owner_id">
+                                <textarea placeholder="Description" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="createClan" data-param="description" rows="2"></textarea>
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="createClan">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Clan -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Clan</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Clan ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getClan" data-param="clan_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getClan">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Join Clan -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Join Clan</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Clan ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="joinClan" data-param="clan_id">
+                                <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="joinClan" data-param="player_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="joinClan">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Search Clans -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Search Clans</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Search Term" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="searchClans" data-param="search_term">
+                                <input type="number" placeholder="Limit (default: 20)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="searchClans" data-param="limit" value="20">
+                            </div>
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="searchClans">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+
+                    <!-- Follow Commands -->
+                    <div class="mt-8">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">⭐ Follow</h3>
+
+                        <!-- Follow Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Follow Player</h4>
+                                <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Follower ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="followPlayer" data-param="follower_id">
+                                <input type="text" placeholder="Following ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="followPlayer" data-param="following_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="followPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Following -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Following</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getFollowing" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getFollowing">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Get Followers -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Get Followers</h4>
+                                <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                            </div>
+                            <input type="text" placeholder="Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getFollowers" data-param="player_id">
+                            <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getFollowers">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+
+                        <!-- Unfollow Player -->
+                        <div class="command-card">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="font-semibold">Unfollow Player</h4>
+                                <span class="method-delete px-3 py-1 rounded text-sm font-semibold">DELETE</span>
+                            </div>
+                            <div class="space-y-2 mb-3">
+                                <input type="text" placeholder="Follower ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="unfollowPlayer" data-param="follower_id">
+                                <input type="text" placeholder="Following ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="unfollowPlayer" data-param="following_id">
+                            </div>
+                            <button class="cmd-btn w-full bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700" data-cmd="unfollowPlayer">Execute</button>
+                            <div class="cmd-response mt-3 hidden"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player View -->
+        <div id="playerView" class="hidden">
+            <div class="max-w-7xl mx-auto px-6 py-8">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6">Player Commands</h2>
+                <p class="text-gray-600 mb-6">Essential commands for players to manage their game experience</p>
+
+                <!-- MongoDB Player Commands -->
+                <div class="space-y-6">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-green-500">Local Player</h3>
+
+                    <!-- Get My Profile -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Get My Profile</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getMyProfile" data-param="player_id">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getMyProfile">Get Profile</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Get My Stats -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Get My Stats</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="getMyStats" data-param="player_id">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getMyStats">Get Stats</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Browse Leaderboard -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Browse Leaderboard</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="number" placeholder="Limit (default: 50)" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="browseLeaderboard" data-param="limit" value="50">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="browseLeaderboard">View Leaderboard</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+                </div>
+
+                <!-- Neo4j Player Commands -->
+                <div class="space-y-6 mt-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4 pb-2 border-b-2 border-purple-500">Social Features</h3>
+
+                    <!-- Send Friend Request -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Send Friend Request</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendPlayerFriendRequest" data-param="from_player_id">
+                            <input type="text" placeholder="Target Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendPlayerFriendRequest" data-param="to_player_id">
+                            <input type="text" placeholder="Message (optional)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="sendPlayerFriendRequest" data-param="message">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="sendPlayerFriendRequest">Send Request</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- View Friends -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">View My Friends</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="viewFriends" data-param="player_id">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="viewFriends">View Friends</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Check Friend Requests -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Check Friend Requests</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="checkFriendRequests" data-param="player_id">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="checkFriendRequests">Check Requests</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Accept Friend Request -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Accept Friend Request</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Requester ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="acceptPlayerFriendRequest" data-param="from_player_id">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="acceptPlayerFriendRequest" data-param="to_player_id">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="acceptPlayerFriendRequest">Accept</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Get Friend Suggestions -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Friend Suggestions</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getFriendSuggestionsPlayer" data-param="player_id">
+                            <input type="number" placeholder="Limit (default: 10)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="getFriendSuggestionsPlayer" data-param="limit" value="10">
+                        </div>
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="getFriendSuggestionsPlayer">Get Suggestions</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Block Player -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Block Player</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerBlockPlayer" data-param="blocker_id">
+                            <input type="text" placeholder="Player to Block" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerBlockPlayer" data-param="blocked_id">
+                            <input type="text" placeholder="Reason (optional)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerBlockPlayer" data-param="reason">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="playerBlockPlayer">Block</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Send Message -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Send Message</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Conversation ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerSendMessage" data-param="conversation_id">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerSendMessage" data-param="sender_id">
+                            <textarea placeholder="Message" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerSendMessage" data-param="content" rows="2"></textarea>
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="playerSendMessage">Send</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Join Clan -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Join Clan</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Clan ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerJoinClan" data-param="clan_id">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerJoinClan" data-param="player_id">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="playerJoinClan">Join Clan</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- View Clan -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">View My Clan</h4>
+                            <span class="method-get px-3 py-1 rounded text-sm font-semibold">GET</span>
+                        </div>
+                        <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded mb-3" data-cmd="viewClan" data-param="player_id">
+                        <button class="cmd-btn w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" data-cmd="viewClan">View Clan</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Create Party -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Create Party</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Your Player ID (leader)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerCreateParty" data-param="leader_id">
+                            <input type="text" placeholder="Game ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerCreateParty" data-param="game_id">
+                            <input type="number" placeholder="Max Size (e.g., 4)" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerCreateParty" data-param="max_size" value="4">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="playerCreateParty">Create Party</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+
+                    <!-- Follow Player -->
+                    <div class="command-card">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-semibold">Follow Player</h4>
+                            <span class="method-post px-3 py-1 rounded text-sm font-semibold">POST</span>
+                        </div>
+                        <div class="space-y-2 mb-3">
+                            <input type="text" placeholder="Your Player ID" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerFollowPlayer" data-param="follower_id">
+                            <input type="text" placeholder="Player to Follow" class="cmd-input w-full px-3 py-2 border rounded" data-cmd="playerFollowPlayer" data-param="following_id">
+                        </div>
+                        <button class="cmd-btn w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700" data-cmd="playerFollowPlayer">Follow</button>
+                        <div class="cmd-response mt-3 hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001/api/v1';
+
+        // Command API configurations
+        const COMMANDS = {
+            // MongoDB - Players
+            getPlayers: { method: 'GET', path: '/players', params: ['skip', 'limit'] },
+            createPlayer: { method: 'POST', path: '/players', body: ['username', 'email', 'level'] },
+            getPlayer: { method: 'GET', path: '/players/{player_id}', params: ['player_id'] },
+            updatePlayer: { method: 'PATCH', path: '/players/{player_id}', body: ['level', 'xp'] },
+            deletePlayer: { method: 'DELETE', path: '/players/{player_id}', params: ['player_id'] },
+
+            // MongoDB - Games
+            getGames: { method: 'GET', path: '/games', params: ['skip', 'limit'] },
+            createGame: { method: 'POST', path: '/games', body: ['title', 'genre', 'max_players'] },
+
+            // MongoDB - Stats
+            getStats: { method: 'GET', path: '/players/{player_id}/stats', params: ['player_id'] },
+            createStats: { method: 'POST', path: '/players/{player_id}/stats', body: ['wins', 'losses'], urlParams: ['player_id'] },
+
+            // MongoDB - Leaderboard
+            getLeaderboard: { method: 'GET', path: '/leaderboards', params: ['limit'] },
+            browseLeaderboard: { method: 'GET', path: '/leaderboards', params: ['limit'] },
+
+            // Neo4j - Player Nodes
+            createPlayerNode: { method: 'POST', path: '/player-nodes', body: ['player_id', 'username', 'status'] },
+            getPlayerNode: { method: 'GET', path: '/player-nodes/{player_id}', params: ['player_id'] },
+            updatePlayerStatus: { method: 'PATCH', path: '/player-nodes/{player_id}/status', body: ['status'], urlParams: ['player_id'] },
+
+            // Neo4j - Friends
+            sendFriendRequest: { method: 'POST', path: '/friends/request', body: ['from_player_id', 'to_player_id', 'message'] },
+            sendPlayerFriendRequest: { method: 'POST', path: '/friends/request', body: ['from_player_id', 'to_player_id', 'message'] },
+            acceptFriendRequest: { method: 'POST', path: '/friends/accept', params: ['from_player_id', 'to_player_id'] },
+            acceptPlayerFriendRequest: { method: 'POST', path: '/friends/accept', params: ['from_player_id', 'to_player_id'] },
+            getFriends: { method: 'GET', path: '/friends/{player_id}', params: ['player_id'] },
+            viewFriends: { method: 'GET', path: '/friends/{player_id}', params: ['player_id'] },
+            getPendingRequests: { method: 'GET', path: '/friends/requests/{player_id}', params: ['player_id'] },
+            checkFriendRequests: { method: 'GET', path: '/friends/requests/{player_id}', params: ['player_id'] },
+            getMutualFriends: { method: 'GET', path: '/friends/mutual/{player1_id}/{player2_id}', params: ['player1_id', 'player2_id'] },
+            getFriendSuggestions: { method: 'GET', path: '/friends/suggestions/{player_id}', params: ['player_id', 'limit'] },
+            getFriendSuggestionsPlayer: { method: 'GET', path: '/friends/suggestions/{player_id}', params: ['player_id', 'limit'] },
+            removeFriend: { method: 'DELETE', path: '/friends/', params: ['player_id', 'friend_id'] },
+
+            // Neo4j - Blocking
+            blockPlayer: { method: 'POST', path: '/block', body: ['blocker_id', 'blocked_id', 'reason'] },
+            playerBlockPlayer: { method: 'POST', path: '/block', body: ['blocker_id', 'blocked_id', 'reason'] },
+            getBlockedPlayers: { method: 'GET', path: '/block/{player_id}', params: ['player_id'] },
+            unblockPlayer: { method: 'DELETE', path: '/block', params: ['blocker_id', 'blocked_id'] },
+
+            // Neo4j - Messaging
+            createConversation: { method: 'POST', path: '/messages/conversation', body: ['type', 'participants', 'name'] },
+            sendMessage: { method: 'POST', path: '/messages', body: ['conversation_id', 'sender_id', 'content'] },
+            playerSendMessage: { method: 'POST', path: '/messages', body: ['conversation_id', 'sender_id', 'content'] },
+            getConversations: { method: 'GET', path: '/messages/player/{player_id}/conversations', params: ['player_id'] },
+            getMessages: { method: 'GET', path: '/messages/conversation/{conversation_id}/messages', params: ['conversation_id', 'limit', 'offset'] },
+
+            // Neo4j - Parties
+            createParty: { method: 'POST', path: '/parties', body: ['leader_id', 'game_id', 'max_size', 'is_public'] },
+            playerCreateParty: { method: 'POST', path: '/parties', body: ['leader_id', 'game_id', 'max_size'] },
+            getParty: { method: 'GET', path: '/parties/{party_id}', params: ['party_id'] },
+            joinParty: { method: 'POST', path: '/parties/{party_id}/join', body: ['player_id'], urlParams: ['party_id'] },
+
+            // Neo4j - Clans
+            createClan: { method: 'POST', path: '/clans', body: ['name', 'tag', 'owner_id', 'description'] },
+            getClan: { method: 'GET', path: '/clans/{clan_id}', params: ['clan_id'] },
+            viewClan: { method: 'GET', path: '/clans/player/{player_id}', params: ['player_id'] },
+            joinClan: { method: 'POST', path: '/clans/{clan_id}/join', body: ['player_id'], urlParams: ['clan_id'] },
+            playerJoinClan: { method: 'POST', path: '/clans/{clan_id}/join', body: ['player_id'], urlParams: ['clan_id'] },
+            searchClans: { method: 'GET', path: '/clans/search/{search_term}', params: ['search_term', 'limit'] },
+
+            // Neo4j - Follow
+            followPlayer: { method: 'POST', path: '/follow', body: ['follower_id', 'following_id'] },
+            playerFollowPlayer: { method: 'POST', path: '/follow', body: ['follower_id', 'following_id'] },
+            getFollowing: { method: 'GET', path: '/follow/following/{player_id}', params: ['player_id'] },
+            getFollowers: { method: 'GET', path: '/follow/followers/{player_id}', params: ['player_id'] },
+            unfollowPlayer: { method: 'DELETE', path: '/follow', params: ['follower_id', 'following_id'] },
+
+            // Player profile
+            getMyProfile: { method: 'GET', path: '/players/{player_id}', params: ['player_id'] },
+            getMyStats: { method: 'GET', path: '/players/{player_id}/stats', params: ['player_id'] },
+        };
+
+        // Tab switching
+        document.getElementById('adminTab').addEventListener('click', () => {
+            document.getElementById('adminView').classList.remove('hidden');
+            document.getElementById('playerView').classList.add('hidden');
+            document.getElementById('adminTab').classList.add('tab-active');
+            document.getElementById('adminTab').classList.remove('tab-inactive');
+            document.getElementById('playerTab').classList.remove('tab-active');
+            document.getElementById('playerTab').classList.add('tab-inactive');
+        });
+
+        document.getElementById('playerTab').addEventListener('click', () => {
+            document.getElementById('playerView').classList.remove('hidden');
+            document.getElementById('adminView').classList.add('hidden');
+            document.getElementById('playerTab').classList.add('tab-active');
+            document.getElementById('playerTab').classList.remove('tab-inactive');
+            document.getElementById('adminTab').classList.remove('tab-active');
+            document.getElementById('adminTab').classList.add('tab-inactive');
+        });
+
+        // Database switching
+        document.getElementById('mongodbBtn').addEventListener('click', () => {
+            document.getElementById('mongodbSection').classList.remove('hidden');
+            document.getElementById('neo4jSection').classList.add('hidden');
+            document.getElementById('mongodbBtn').classList.add('bg-green-600', 'hover:bg-green-700');
+            document.getElementById('mongodbBtn').classList.remove('bg-gray-300', 'hover:bg-gray-400');
+            document.getElementById('neo4jBtn').classList.remove('bg-purple-600', 'hover:bg-purple-700');
+            document.getElementById('neo4jBtn').classList.add('bg-gray-300', 'hover:bg-gray-400');
+        });
+
+        document.getElementById('neo4jBtn').addEventListener('click', () => {
+            document.getElementById('neo4jSection').classList.remove('hidden');
+            document.getElementById('mongodbSection').classList.add('hidden');
+            document.getElementById('neo4jBtn').classList.add('bg-purple-600', 'hover:bg-purple-700');
+            document.getElementById('neo4jBtn').classList.remove('bg-gray-300', 'hover:bg-gray-400');
+            document.getElementById('mongodbBtn').classList.remove('bg-green-600', 'hover:bg-green-700');
+            document.getElementById('mongodbBtn').classList.add('bg-gray-300', 'hover:bg-gray-400');
+        });
+
+        // Command execution
+        document.querySelectorAll('.cmd-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const cmdName = btn.getAttribute('data-cmd');
+                const card = btn.closest('.command-card');
+                const responseDiv = card.querySelector('.cmd-response');
+                const cmd = COMMANDS[cmdName];
+
+                if (!cmd) {
+                    responseDiv.textContent = 'Command not found';
+                    responseDiv.classList.add('response-error');
+                    responseDiv.classList.remove('hidden');
+                    return;
+                }
+
+                // Collect parameters
+                const inputs = card.querySelectorAll('.cmd-input');
+                const params = {};
+                let valid = true;
+
+                inputs.forEach(input => {
+                    if (input.getAttribute('data-param')) {
+                        const value = input.value || input.getAttribute('value');
+                        params[input.getAttribute('data-param')] = value;
+                        if (!value && input.hasAttribute('required')) {
+                            valid = false;
+                        }
+                    }
+                });
+
+                if (!valid) {
+                    responseDiv.textContent = 'Please fill in all fields';
+                    responseDiv.classList.add('response-error');
+                    responseDiv.classList.remove('hidden');
+                    return;
+                }
+
+                // Build URL and request
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner">⚙️</span> Executing...';
+                responseDiv.classList.add('hidden');
+
+                try {
+                    let url = API_BASE + cmd.path;
+                    
+                    // Replace URL parameters
+                    if (cmd.urlParams) {
+                        cmd.urlParams.forEach(param => {
+                            url = url.replace(`{${param}}`, params[param]);
+                        });
+                    }
+
+                    // Handle path parameters
+                    Object.keys(params).forEach(key => {
+                        if (url.includes(`{${key}}`)) {
+                            url = url.replace(`{${key}}`, params[key]);
+                        }
+                    });
+
+                    // Add query parameters for GET
+                    if (cmd.method === 'GET') {
+                        const queryParams = new URLSearchParams();
+                        if (cmd.params) {
+                            cmd.params.forEach(param => {
+                                if (params[param] && !url.includes(`{${param}}`)) {
+                                    queryParams.append(param, params[param]);
+                                }
+                            });
+                        }
+                        if (queryParams.toString()) {
+                            url += '?' + queryParams.toString();
+                        }
+                    }
+
+                    // Make request
+                    let response;
+                    if (cmd.method === 'GET') {
+                        response = await axios.get(url);
+                    } else if (cmd.method === 'POST') {
+                        const body = {};
+                        if (cmd.body) {
+                            cmd.body.forEach(field => {
+                                if (params[field]) {
+                                    body[field] = params[field];
+                                }
+                            });
+                        }
+                        response = await axios.post(url, body);
+                    } else if (cmd.method === 'PATCH') {
+                        const body = {};
+                        if (cmd.body) {
+                            cmd.body.forEach(field => {
+                                if (params[field]) {
+                                    body[field] = params[field];
+                                }
+                            });
+                        }
+                        response = await axios.patch(url, body);
+                    } else if (cmd.method === 'DELETE') {
+                        const queryParams = new URLSearchParams();
+                        if (cmd.params) {
+                            cmd.params.forEach(param => {
+                                if (params[param] && !url.includes(`{${param}}`)) {
+                                    queryParams.append(param, params[param]);
+                                }
+                            });
+                        }
+                        if (queryParams.toString()) {
+                            url += '?' + queryParams.toString();
+                        }
+                        response = await axios.delete(url);
+                    }
+
+                    // Display response
+                    responseDiv.innerHTML = `<pre class="p-3 overflow-auto max-h-96">${JSON.stringify(response.data, null, 2)}</pre>`;
+                    responseDiv.classList.add('response-success');
+                    responseDiv.classList.remove('response-error', 'hidden');
+                } catch (error) {
+                    const errorMsg = error.response?.data?.detail || error.message;
+                    responseDiv.innerHTML = `<pre class="p-3 overflow-auto max-h-96">Error: ${JSON.stringify(errorMsg, null, 2)}</pre>`;
+                    responseDiv.classList.add('response-error');
+                    responseDiv.classList.remove('response-success', 'hidden');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Execute';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

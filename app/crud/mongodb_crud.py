@@ -739,3 +739,85 @@ class PlayerInventoryCRUD:
             "game_id": game_id
         })
         return result.deleted_count > 0
+
+
+# ==================== ADVANCED QUERY HELPERS ====================
+class AdvancedMongoQueries:
+    @staticmethod
+    async def count_players() -> int:
+        collection = get_players_collection()
+        return await collection.count_documents({})
+
+    @staticmethod
+    async def distinct_platforms() -> List[str]:
+        collection = get_games_collection()
+        return await collection.distinct("platforms")
+
+    @staticmethod
+    async def text_search_games(term: str, limit: int = 50) -> List[dict]:
+        collection = get_games_collection()
+        # Prefer text index, fallback to regex search
+        try:
+            cursor = collection.find({"$text": {"$search": term}})
+            games = await cursor.limit(limit).to_list(length=limit)
+        except Exception:
+            regex = {"$regex": term, "$options": "i"}
+            cursor = collection.find({"$or": [{"name": regex}, {"description": regex}, {"tags": regex}]})
+            games = await cursor.limit(limit).to_list(length=limit)
+        return serialize_docs(games)
+
+    @staticmethod
+    async def aggregate_top_players_by_score(game_id: str, limit: int = 10) -> List[dict]:
+        collection = get_player_stats_collection()
+        pipeline = [
+            {"$match": {"game_id": game_id}},
+            {"$project": {"player_id": 1, "wins": 1, "kills": 1, "kd_ratio": 1}},
+            {"$sort": {"wins": -1, "kd_ratio": -1}},
+            {"$limit": limit}
+        ]
+        cursor = collection.aggregate(pipeline)
+        results = await cursor.to_list(length=limit)
+        return serialize_docs(results)
+
+    @staticmethod
+    async def upsert_player_by_username(username: str, data: dict) -> dict:
+        collection = get_players_collection()
+        data["last_updated"] = datetime.utcnow()
+        result = await collection.update_one({"username": username}, {"$set": data}, upsert=True)
+        # If upserted_id available, fetch by inserted id
+        if getattr(result, "upserted_id", None):
+            return serialize_doc(await collection.find_one({"_id": result.upserted_id}))
+        return serialize_doc(await collection.find_one({"username": username}))
+
+    @staticmethod
+    async def bulk_insert_players(players: List[dict]) -> int:
+        collection = get_players_collection()
+        for p in players:
+            p.setdefault("created_at", datetime.utcnow())
+        result = await collection.insert_many(players)
+        return len(result.inserted_ids)
+
+    @staticmethod
+    async def lookup_match_with_players(match_id: str) -> Optional[dict]:
+        collection = get_match_history_collection()
+        pipeline = [
+            {"$match": {"_id": ObjectId(match_id)}},
+            {"$unwind": "$players"},
+            {"$lookup": {
+                "from": "players",
+                "localField": "players.player_id",
+                "foreignField": "_id",
+                "as": "player_docs"
+            }},
+            {"$group": {
+                "_id": "$_id",
+                "match": {"$first": "$${ROOT}"},
+                "players": {"$push": "$player_docs"}
+            }}
+        ]
+        try:
+            cursor = collection.aggregate(pipeline)
+            docs = await cursor.to_list(length=1)
+            return serialize_doc(docs[0]) if docs else None
+        except Exception:
+            return None

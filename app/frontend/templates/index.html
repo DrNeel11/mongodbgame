@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GameBD - Gaming System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .grad-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .grad-dark { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); }
+        .card-hover { transition: all 0.2s; }
+        .card-hover:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(102, 126, 234, 0.15); }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="root"></div>
+    
+    <script>
+        const API_BASE = "http://localhost:8001/api/v1";
+        
+        const API = {
+            players: {
+                getAll: (skip = 0, limit = 20) => axios.get(`${API_BASE}/players?skip=${skip}&limit=${limit}`),
+                getById: (id) => axios.get(`${API_BASE}/players/${id}`),
+            },
+            games: {
+                getAll: (skip = 0, limit = 20) => axios.get(`${API_BASE}/games?skip=${skip}&limit=${limit}`),
+                getById: (id) => axios.get(`${API_BASE}/games/${id}`),
+            },
+            leaderboards: {
+                get: (limit = 50) => axios.get(`${API_BASE}/leaderboards?limit=${limit}`),
+            },
+        };
+        
+        const app = {
+            init() {
+                document.getElementById('root').innerHTML = `
+                    <div class="min-h-screen grad-dark">
+                        <header class="sticky top-0 z-50 grad-dark border-b border-purple-500/30">
+                            <div class="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-12 h-12 rounded-lg grad-primary flex items-center justify-center text-2xl">🎮</div>
+                                    <h1 class="text-3xl font-bold">GameBD</h1>
+                                </div>
+                                <nav class="flex gap-4">
+                                    <a href="/ui/interactive" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 transition font-semibold">⚡ Interactive Console</a>
+                                    <a href="/ui/dashboard" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 transition font-semibold">Admin Dashboard</a>
+                                    <button onclick="app.togglePlayers()" class="px-4 py-2 rounded-lg hover:bg-gray-700 transition">Players</button>
+                                    <button onclick="app.toggleGames()" class="px-4 py-2 rounded-lg hover:bg-gray-700 transition">Games</button>
+                                    <button onclick="app.toggleLeaderboard()" class="px-4 py-2 rounded-lg hover:bg-gray-700 transition">Leaderboard</button>
+                                </nav>
+                            </div>
+                        </header>
+
+                        <main class="max-w-7xl mx-auto px-6 py-12">
+                            <div class="mb-12">
+                                <h2 class="text-5xl font-bold mb-4">Welcome to GameBD</h2>
+                                <p class="text-xl text-gray-400 mb-8">A unified multiplayer gaming system with MongoDB and Neo4j</p>
+                                <a href="/ui/dashboard" class="inline-block px-8 py-3 grad-primary rounded-lg font-semibold hover:shadow-lg transition">View Admin Dashboard</a>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                                <button onclick="app.togglePlayers()" class="cmd-card card-hover rounded-lg p-8 text-left">
+                                    <div class="text-4xl mb-4">👥</div>
+                                    <h3 class="text-2xl font-bold mb-2">Players</h3>
+                                    <p class="text-gray-400">Browse and manage player profiles</p>
+                                </button>
+                                <button onclick="app.toggleGames()" class="cmd-card card-hover rounded-lg p-8 text-left">
+                                    <div class="text-4xl mb-4">🎮</div>
+                                    <h3 class="text-2xl font-bold mb-2">Games</h3>
+                                    <p class="text-gray-400">Explore games and their stats</p>
+                                </button>
+                                <button onclick="app.toggleLeaderboard()" class="cmd-card card-hover rounded-lg p-8 text-left">
+                                    <div class="text-4xl mb-4">🏆</div>
+                                    <h3 class="text-2xl font-bold mb-2">Leaderboard</h3>
+                                    <p class="text-gray-400">View top players and rankings</p>
+                                </button>
+                            </div>
+
+                            <div id="content-area" class="hidden"></div>
+                        </main>
+                    </div>
+                `;
+            },
+
+            async togglePlayers() {
+                const area = document.getElementById('content-area');
+                area.classList.remove('hidden');
+                area.innerHTML = '<div class="text-center py-12"><p class="text-gray-400">Loading...</p></div>';
+                try {
+                    const response = await API.players.getAll(0, 20);
+                    const players = response.data || [];
+                    const html = `
+                        <h3 class="text-3xl font-bold mb-8">Players</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            ${players.map(p => `
+                                <div class="cmd-card card-hover rounded-lg p-6">
+                                    <h4 class="text-xl font-bold text-purple-400">${p.username}</h4>
+                                    <p class="text-gray-400 text-sm mt-2">${p.email}</p>
+                                    <p class="text-gray-500 text-xs mt-3">${(p.platforms || []).join(', ')}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    area.innerHTML = html;
+                } catch (err) {
+                    area.innerHTML = '<p class="text-red-400">Error loading players</p>';
+                }
+            },
+
+            async toggleGames() {
+                const area = document.getElementById('content-area');
+                area.classList.remove('hidden');
+                area.innerHTML = '<div class="text-center py-12"><p class="text-gray-400">Loading...</p></div>';
+                try {
+                    const response = await API.games.getAll(0, 20);
+                    const games = response.data || [];
+                    const html = `
+                        <h3 class="text-3xl font-bold mb-8">Games</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            ${games.map(g => `
+                                <div class="cmd-card card-hover rounded-lg p-6">
+                                    <h4 class="text-xl font-bold text-purple-400">${g.title}</h4>
+                                    <p class="text-gray-400 text-sm mt-2">${g.publisher}</p>
+                                    <p class="text-gray-500 text-xs mt-3">Max Players: ${g.max_players}</p>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                    area.innerHTML = html;
+                } catch (err) {
+                    area.innerHTML = '<p class="text-red-400">Error loading games</p>';
+                }
+            },
+
+            async toggleLeaderboard() {
+                const area = document.getElementById('content-area');
+                area.classList.remove('hidden');
+                area.innerHTML = '<div class="text-center py-12"><p class="text-gray-400">Loading...</p></div>';
+                try {
+                    const response = await API.leaderboards.get(50);
+                    const entries = response.data || [];
+                    const html = `
+                        <h3 class="text-3xl font-bold mb-8">Leaderboard</h3>
+                        <div class="overflow-x-auto cmd-card rounded-lg">
+                            <table class="w-full">
+                                <thead class="border-b border-purple-500/30">
+                                    <tr>
+                                        <th class="text-left px-6 py-4">Rank</th>
+                                        <th class="text-left px-6 py-4">Player</th>
+                                        <th class="text-right px-6 py-4">Score</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${entries.slice(0, 20).map((e, i) => `
+                                        <tr class="border-b border-purple-500/10">
+                                            <td class="px-6 py-4 text-purple-400 font-bold">#${i+1}</td>
+                                            <td class="px-6 py-4">${e.username || 'Unknown'}</td>
+                                            <td class="px-6 py-4 text-right">${e.score || 0}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    area.innerHTML = html;
+                } catch (err) {
+                    area.innerHTML = '<p class="text-red-400">Error loading leaderboard</p>';
+                }
+            }
+        };
+        
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>

@@ -5,6 +5,9 @@ FastAPI application with MongoDB and Neo4j
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from app.routes.frontend import router as frontend_router
+from app.routes.admin import router as admin_router
 from contextlib import asynccontextmanager
 
 from app.database.mongodb import connect_mongodb, close_mongodb
@@ -90,6 +93,9 @@ All endpoints demonstrate Create, Read, Update, and Delete operations.
     lifespan=lifespan,
 )
 
+# Mount server-rendered frontend static files and templates
+app.mount("/static", StaticFiles(directory="app/frontend/static"), name="static")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -98,6 +104,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include server-rendered frontend router
+app.include_router(frontend_router)
+app.include_router(admin_router)
 
 # MongoDB Routes
 app.include_router(players_router, prefix="/api/v1")
@@ -110,6 +120,15 @@ app.include_router(player_achievements_router, prefix="/api/v1")
 app.include_router(sessions_router, prefix="/api/v1")
 app.include_router(notifications_router, prefix="/api/v1")
 app.include_router(inventory_router, prefix="/api/v1")
+
+# Neo4j (graph) routes
+app.include_router(player_nodes_router, prefix="/api/v1/graph")
+app.include_router(friends_router, prefix="/api/v1/graph")
+app.include_router(blocking_router, prefix="/api/v1/graph")
+app.include_router(messaging_router, prefix="/api/v1/graph")
+app.include_router(party_router, prefix="/api/v1/graph")
+app.include_router(clan_router, prefix="/api/v1/graph")
+app.include_router(follow_router, prefix="/api/v1/graph")
 
 
 @app.get("/", tags=["Root"])

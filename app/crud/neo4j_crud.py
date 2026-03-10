@@ -14,6 +14,49 @@ def generate_id():
     return str(uuid.uuid4())
 
 
+def _serialize_value(v):
+    """Serialize Neo4j-specific types (DateTime) to JSON-friendly types.
+    Recursively handles dicts and lists.
+    """
+    # neo4j.time.DateTime exposes to_native() which returns a datetime
+    try:
+        if hasattr(v, "to_native") and callable(v.to_native):
+            native = v.to_native()
+            if hasattr(native, "isoformat"):
+                return native.isoformat()
+            return str(native)
+    except Exception:
+        pass
+
+    # Some drivers expose iso_format
+    try:
+        if hasattr(v, "iso_format") and callable(v.iso_format):
+            return v.iso_format()
+    except Exception:
+        pass
+
+    if isinstance(v, dict):
+        return {k: _serialize_value(val) for k, val in v.items()}
+    if isinstance(v, list):
+        return [_serialize_value(x) for x in v]
+    return v
+
+
+def _serialize_record(record):
+    if record is None:
+        return None
+    # record can be a neo4j.Record or a plain dict
+    try:
+        d = dict(record)
+    except Exception:
+        d = record
+    return {k: _serialize_value(v) for k, v in d.items()}
+
+
+def _serialize_records(records):
+    return [_serialize_record(r) for r in (records or [])]
+
+
 # ==================== PLAYER NODES CRUD ====================
 class PlayerNodesCRUD:
     
@@ -34,7 +77,7 @@ class PlayerNodesCRUD:
             """
             result = await session.run(query, player_id=player_id, username=username, status=status)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ
     @staticmethod
@@ -48,7 +91,7 @@ class PlayerNodesCRUD:
             """
             result = await session.run(query, player_id=player_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # UPDATE
     @staticmethod
@@ -63,7 +106,7 @@ class PlayerNodesCRUD:
             """
             result = await session.run(query, player_id=player_id, status=status)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     @staticmethod
     async def update_player_username(player_id: str, username: str) -> Optional[dict]:
@@ -77,7 +120,7 @@ class PlayerNodesCRUD:
             """
             result = await session.run(query, player_id=player_id, username=username)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # DELETE
     @staticmethod
@@ -117,7 +160,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, from_id=from_player_id, to_id=to_player_id, message=message)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # CREATE - Accept friend request (creates FRIENDS_WITH relationship)
     @staticmethod
@@ -134,7 +177,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, from_id=from_player_id, to_id=to_player_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ - Get pending friend requests
     @staticmethod
@@ -150,7 +193,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # READ - Get friends list
     @staticmethod
@@ -165,7 +208,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # READ - Get mutual friends
     @staticmethod
@@ -179,7 +222,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, player1_id=player1_id, player2_id=player2_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # READ - Get friends of friends (for suggestions)
     @staticmethod
@@ -199,7 +242,7 @@ class FriendshipsCRUD:
             """
             result = await session.run(query, player_id=player_id, limit=limit)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # UPDATE - Set nickname for friend
     @staticmethod
@@ -268,7 +311,7 @@ class BlockingCRUD:
             """
             result = await session.run(query, blocker_id=blocker_id, blocked_id=blocked_id, reason=reason)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ
     @staticmethod
@@ -283,7 +326,7 @@ class BlockingCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # DELETE
     @staticmethod
@@ -335,7 +378,7 @@ class MessagingCRUD:
                 """
                 await session.run(add_query, conv_id=conversation_id, player_id=player_id)
             
-            return dict(conv_record) if conv_record else None
+            return _serialize_record(conv_record) if conv_record else None
     
     # CREATE - Message
     @staticmethod
@@ -365,7 +408,7 @@ class MessagingCRUD:
                 msg_id=message_id, content=content
             )
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ - Get conversation
     @staticmethod
@@ -382,7 +425,7 @@ class MessagingCRUD:
             """
             result = await session.run(query, conv_id=conversation_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ - Get player's conversations
     @staticmethod
@@ -400,7 +443,7 @@ class MessagingCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # READ - Get messages in conversation
     @staticmethod
@@ -421,7 +464,7 @@ class MessagingCRUD:
             """
             result = await session.run(query, conv_id=conversation_id, limit=limit, offset=offset)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # UPDATE - Edit message
     @staticmethod
@@ -441,7 +484,7 @@ class MessagingCRUD:
             """
             result = await session.run(query, msg_id=message_id, content=new_content)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # UPDATE - Mute conversation
     @staticmethod
@@ -518,7 +561,7 @@ class PartyCRUD:
                 game_id=game_id, max_size=max_size, is_public=is_public
             )
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # CREATE - Invite to party
     @staticmethod
@@ -535,7 +578,7 @@ class PartyCRUD:
             """
             result = await session.run(query, party_id=party_id, inviter_id=inviter_id, invitee_id=invitee_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # CREATE - Join party
     @staticmethod
@@ -555,7 +598,7 @@ class PartyCRUD:
             """
             result = await session.run(query, party_id=party_id, player_id=player_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ
     @staticmethod
@@ -574,7 +617,7 @@ class PartyCRUD:
             """
             result = await session.run(query, party_id=party_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     @staticmethod
     async def get_player_party(player_id: str) -> Optional[dict]:
@@ -588,7 +631,7 @@ class PartyCRUD:
             """
             result = await session.run(query, player_id=player_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # UPDATE
     @staticmethod
@@ -620,7 +663,7 @@ class PartyCRUD:
             """
             result = await session.run(query, **params)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # DELETE - Leave party
     @staticmethod
@@ -681,7 +724,7 @@ class ClanCRUD:
                 owner_id=owner_id, description=description
             )
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # CREATE - Join clan
     @staticmethod
@@ -708,7 +751,7 @@ class ClanCRUD:
             """
             result = await session.run(query, clan_id=clan_id, player_id=player_id, rank=rank)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ
     @staticmethod
@@ -727,7 +770,7 @@ class ClanCRUD:
             """
             result = await session.run(query, clan_id=clan_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     @staticmethod
     async def get_player_clan(player_id: str) -> Optional[dict]:
@@ -741,7 +784,7 @@ class ClanCRUD:
             """
             result = await session.run(query, player_id=player_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     @staticmethod
     async def search_clans(search_term: str, limit: int = 20) -> List[dict]:
@@ -758,7 +801,7 @@ class ClanCRUD:
             """
             result = await session.run(query, search=search_term, limit=limit)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # UPDATE
     @staticmethod
@@ -790,7 +833,7 @@ class ClanCRUD:
             """
             result = await session.run(query, **params)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     @staticmethod
     async def update_member_role(clan_id: str, player_id: str, role: str, rank: int = None) -> Optional[dict]:
@@ -811,7 +854,7 @@ class ClanCRUD:
             """
             result = await session.run(query, **params)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # DELETE - Leave clan
     @staticmethod
@@ -861,7 +904,7 @@ class FollowCRUD:
             """
             result = await session.run(query, follower_id=follower_id, following_id=following_id)
             record = await result.single()
-            return dict(record) if record else None
+            return _serialize_record(record) if record else None
     
     # READ
     @staticmethod
@@ -876,7 +919,7 @@ class FollowCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     @staticmethod
     async def get_followers(player_id: str) -> List[dict]:
@@ -890,7 +933,7 @@ class FollowCRUD:
             """
             result = await session.run(query, player_id=player_id)
             records = await result.data()
-            return records
+            return _serialize_records(records)
     
     # DELETE
     @staticmethod
@@ -906,3 +949,60 @@ class FollowCRUD:
             result = await session.run(query, follower_id=follower_id, following_id=following_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+
+
+# ==================== ADVANCED NEO4J QUERIES ====================
+class AdvancedNeo4jQueries:
+    @staticmethod
+    async def shortest_path_between(player1_id: str, player2_id: str, max_hops: int = 6) -> Optional[dict]:
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = f"""
+            MATCH (p1:Player {{player_id: $p1}}), (p2:Player {{player_id: $p2}})
+            MATCH path = shortestPath((p1)-[*..{max_hops}]-(p2))
+            RETURN [n IN nodes(path) | n.player_id] AS node_ids, [type(r) IN relationships(path) | type(r)] AS rels
+            LIMIT 1
+            """
+            result = await session.run(query, p1=player1_id, p2=player2_id)
+            record = await result.single()
+            return _serialize_record(record) if record else None
+
+    @staticmethod
+    async def recommend_friends_by_common_friends(player_id: str, limit: int = 10) -> List[dict]:
+        """Recommend players based on friends-of-friends who are not already friends or blocked."""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:FRIENDS_WITH]->(f:Player)-[:FRIENDS_WITH]->(rec:Player)
+            WHERE NOT (p)-[:FRIENDS_WITH]->(rec) AND NOT (p)-[:BLOCKED]->(rec) AND rec.player_id <> $player_id
+            RETURN rec.player_id as player_id, rec.username as username, count(f) as mutual_friends
+            ORDER BY mutual_friends DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, player_id=player_id, limit=limit)
+            records = await result.data()
+            return _serialize_records(records)
+
+    @staticmethod
+    async def degree_centrality(player_id: str) -> int:
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[r:FRIENDS_WITH]-()
+            RETURN count(r) as degree
+            """
+            result = await session.run(query, player_id=player_id)
+            record = await result.single()
+            return int(record["degree"]) if record else 0
+
+    @staticmethod
+    async def mutual_friends_count(player1_id: str, player2_id: str) -> int:
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p1:Player {player_id: $p1})-[:FRIENDS_WITH]->(m:Player)<-[:FRIENDS_WITH]-(p2:Player {player_id: $p2})
+            RETURN count(m) as mutual
+            """
+            result = await session.run(query, p1=player1_id, p2=player2_id)
+            record = await result.single()
+            return int(record["mutual"]) if record else 0
