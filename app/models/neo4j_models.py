@@ -142,7 +142,7 @@ class PartyUpdate(BaseModel):
 
 
 class PartyInviteCreate(BaseModel):
-    party_id: str
+    """Invite request - party_id comes from URL path"""
     inviter_id: str
     invitee_id: str
 

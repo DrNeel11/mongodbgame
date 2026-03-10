@@ -63,16 +63,13 @@ class PlayerNodesCRUD:
     # CREATE
     @staticmethod
     async def create_player_node(player_id: str, username: str, status: str = "offline") -> dict:
-        """Create a player node in the graph"""
+        """Create a player node in the graph (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             query = """
-            CREATE (p:Player {
-                player_id: $player_id,
-                username: $username,
-                status: $status,
-                created_at: datetime()
-            })
+            MERGE (p:Player {player_id: $player_id})
+            ON CREATE SET p.username = $username, p.status = $status, p.created_at = datetime()
+            ON MATCH SET p.username = $username, p.status = $status
             RETURN p.player_id as player_id, p.username as username, p.status as status
             """
             result = await session.run(query, player_id=player_id, username=username, status=status)
@@ -144,16 +141,14 @@ class FriendshipsCRUD:
     # CREATE - Send friend request
     @staticmethod
     async def send_friend_request(from_player_id: str, to_player_id: str, message: str = "") -> dict:
-        """Send a friend request"""
+        """Send a friend request (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             query = """
             MATCH (from:Player {player_id: $from_id})
             MATCH (to:Player {player_id: $to_id})
-            CREATE (from)-[r:SENT_REQUEST {
-                sent_at: datetime(),
-                message: $message
-            }]->(to)
+            MERGE (from)-[r:SENT_REQUEST]->(to)
+            ON CREATE SET r.sent_at = datetime(), r.message = $message
             RETURN from.player_id as from_player_id, from.username as from_username,
                    to.player_id as to_player_id, to.username as to_username,
                    r.message as message, r.sent_at as sent_at
@@ -165,14 +160,16 @@ class FriendshipsCRUD:
     # CREATE - Accept friend request (creates FRIENDS_WITH relationship)
     @staticmethod
     async def accept_friend_request(from_player_id: str, to_player_id: str) -> dict:
-        """Accept a friend request and create friendship"""
+        """Accept a friend request and create friendship (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             query = """
             MATCH (from:Player {player_id: $from_id})-[r:SENT_REQUEST]->(to:Player {player_id: $to_id})
             DELETE r
-            CREATE (from)-[f:FRIENDS_WITH {since: datetime()}]->(to)
-            CREATE (to)-[f2:FRIENDS_WITH {since: datetime()}]->(from)
+            MERGE (from)-[f:FRIENDS_WITH]->(to)
+            ON CREATE SET f.since = datetime()
+            MERGE (to)-[f2:FRIENDS_WITH]->(from)
+            ON CREATE SET f2.since = datetime()
             RETURN from.player_id as player1_id, to.player_id as player2_id, f.since as since
             """
             result = await session.run(query, from_id=from_player_id, to_id=to_player_id)
@@ -296,20 +293,27 @@ class BlockingCRUD:
     # CREATE
     @staticmethod
     async def block_player(blocker_id: str, blocked_id: str, reason: str = None) -> dict:
-        """Block a player"""
+        """Block a player - removes friendship and follow relationships"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
-            # Also remove any friendship
-            query = """
+            # First, remove all relationships between the two players
+            delete_query = """
+            MATCH (blocker:Player {player_id: $blocker_id})-[r]-(blocked:Player {player_id: $blocked_id})
+            WHERE type(r) IN ['FRIENDS_WITH', 'SENT_REQUEST', 'FOLLOWS']
+            DELETE r
+            """
+            await session.run(delete_query, blocker_id=blocker_id, blocked_id=blocked_id)
+            
+            # Then create the block relationship
+            block_query = """
             MATCH (blocker:Player {player_id: $blocker_id})
             MATCH (blocked:Player {player_id: $blocked_id})
-            OPTIONAL MATCH (blocker)-[f:FRIENDS_WITH]-(blocked)
-            DELETE f
-            CREATE (blocker)-[b:BLOCKED {since: datetime(), reason: $reason}]->(blocked)
+            MERGE (blocker)-[b:BLOCKED]->(blocked)
+            ON CREATE SET b.since = datetime(), b.reason = $reason
             RETURN blocked.player_id as blocked_player_id, blocked.username as blocked_username,
                    b.since as blocked_since, b.reason as reason
             """
-            result = await session.run(query, blocker_id=blocker_id, blocked_id=blocked_id, reason=reason)
+            result = await session.run(block_query, blocker_id=blocker_id, blocked_id=blocked_id, reason=reason)
             record = await result.single()
             return _serialize_record(record) if record else None
     
@@ -566,13 +570,14 @@ class PartyCRUD:
     # CREATE - Invite to party
     @staticmethod
     async def invite_to_party(party_id: str, inviter_id: str, invitee_id: str) -> dict:
-        """Invite a player to a party"""
+        """Invite a player to a party (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             query = """
             MATCH (party:Party {party_id: $party_id})
             MATCH (invitee:Player {player_id: $invitee_id})
-            CREATE (invitee)-[:INVITED_TO {invited_by: $inviter_id, invited_at: datetime()}]->(party)
+            MERGE (invitee)-[i:INVITED_TO]->(party)
+            ON CREATE SET i.invited_by = $inviter_id, i.invited_at = datetime()
             RETURN party.party_id as party_id, invitee.player_id as invitee_id, 
                    invitee.username as invitee_username
             """
@@ -583,7 +588,7 @@ class PartyCRUD:
     # CREATE - Join party
     @staticmethod
     async def join_party(party_id: str, player_id: str) -> dict:
-        """Join a party (accept invite or join public)"""
+        """Join a party (accept invite or join public, prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             # Remove invite if exists and join
@@ -592,7 +597,8 @@ class PartyCRUD:
             MATCH (party:Party {party_id: $party_id})
             OPTIONAL MATCH (player)-[i:INVITED_TO]->(party)
             DELETE i
-            CREATE (player)-[:IN_PARTY {joined_at: datetime(), role: 'member'}]->(party)
+            MERGE (player)-[p:IN_PARTY]->(party)
+            ON CREATE SET p.joined_at = datetime(), p.role = 'member'
             RETURN party.party_id as party_id, player.player_id as player_id, 
                    player.username as username
             """
@@ -729,7 +735,7 @@ class ClanCRUD:
     # CREATE - Join clan
     @staticmethod
     async def join_clan(clan_id: str, player_id: str) -> dict:
-        """Join a clan"""
+        """Join a clan (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             # Get current member count for rank
@@ -745,7 +751,8 @@ class ClanCRUD:
             query = """
             MATCH (player:Player {player_id: $player_id})
             MATCH (clan:Clan {clan_id: $clan_id})
-            CREATE (player)-[:BELONGS_TO {joined_at: datetime(), role: 'member', rank: $rank}]->(clan)
+            MERGE (player)-[b:BELONGS_TO]->(clan)
+            ON CREATE SET b.joined_at = datetime(), b.role = 'member', b.rank = $rank
             RETURN clan.clan_id as clan_id, player.player_id as player_id, 
                    player.username as username
             """
@@ -893,13 +900,14 @@ class FollowCRUD:
     # CREATE
     @staticmethod
     async def follow_player(follower_id: str, following_id: str) -> dict:
-        """Follow a player"""
+        """Follow a player (prevents duplicates)"""
         driver = get_neo4j_driver()
         async with driver.session() as session:
             query = """
             MATCH (follower:Player {player_id: $follower_id})
             MATCH (following:Player {player_id: $following_id})
-            CREATE (follower)-[:FOLLOWS {since: datetime()}]->(following)
+            MERGE (follower)-[f:FOLLOWS]->(following)
+            ON CREATE SET f.since = datetime()
             RETURN following.player_id as player_id, following.username as username
             """
             result = await session.run(query, follower_id=follower_id, following_id=following_id)
@@ -1006,3 +1014,223 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, p1=player1_id, p2=player2_id)
             record = await result.single()
             return int(record["mutual"]) if record else 0
+
+    # ========== Advanced Queries with ORDER BY, LIMIT, SKIP ==========
+    
+    @staticmethod
+    async def get_players_leaderboard(order_by: str = "friends", limit: int = 10, skip: int = 0) -> list:
+        """Get player leaderboard sorted by various metrics using ORDER BY, LIMIT, SKIP"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            if order_by == "friends":
+                query = """
+                MATCH (p:Player)
+                OPTIONAL MATCH (p)-[r:FRIENDS_WITH]->()
+                WITH p, count(r) as friend_count
+                RETURN p.player_id as player_id, p.username as username, friend_count
+                ORDER BY friend_count DESC
+                SKIP $skip
+                LIMIT $limit
+                """
+            elif order_by == "followers":
+                query = """
+                MATCH (p:Player)
+                OPTIONAL MATCH ()-[r:FOLLOWS]->(p)
+                WITH p, count(r) as follower_count
+                RETURN p.player_id as player_id, p.username as username, follower_count
+                ORDER BY follower_count DESC
+                SKIP $skip
+                LIMIT $limit
+                """
+            elif order_by == "messages":
+                query = """
+                MATCH (p:Player)
+                OPTIONAL MATCH (p)-[r:SENT_MESSAGE]->()
+                WITH p, count(r) as message_count
+                RETURN p.player_id as player_id, p.username as username, message_count
+                ORDER BY message_count DESC
+                SKIP $skip
+                LIMIT $limit
+                """
+            else:
+                query = """
+                MATCH (p:Player)
+                RETURN p.player_id as player_id, p.username as username
+                ORDER BY p.username ASC
+                SKIP $skip
+                LIMIT $limit
+                """
+            result = await session.run(query, limit=limit, skip=skip)
+            records = await result.data()
+            return records
+
+    @staticmethod
+    async def get_player_statistics(player_id: str) -> dict:
+        """Get comprehensive statistics for a player using WITH and aggregation"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})
+            OPTIONAL MATCH (p)-[f:FRIENDS_WITH]->()
+            WITH p, count(f) as friends_count
+            OPTIONAL MATCH (p)-[fo:FOLLOWS]->()
+            WITH p, friends_count, count(fo) as following_count
+            OPTIONAL MATCH ()-[fr:FOLLOWS]->(p)
+            WITH p, friends_count, following_count, count(fr) as followers_count
+            OPTIONAL MATCH (p)-[m:SENT_MESSAGE]->()
+            WITH p, friends_count, following_count, followers_count, count(m) as messages_sent
+            OPTIONAL MATCH (p)-[:MEMBER_OF]->(c:Clan)
+            WITH p, friends_count, following_count, followers_count, messages_sent, collect(c.name) as clans
+            OPTIONAL MATCH (p)-[:IN_PARTY]->(pr:Party)
+            RETURN p.player_id as player_id, p.username as username,
+                   friends_count, following_count, followers_count, 
+                   messages_sent, clans, collect(pr.party_id) as parties
+            """
+            result = await session.run(query, player_id=player_id)
+            record = await result.single()
+            if record:
+                return dict(record)
+            return {}
+
+    @staticmethod
+    async def get_social_graph_union(player_id: str) -> list:
+        """Get all social connections using UNION (friends + following + followers)"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:FRIENDS_WITH]->(friend:Player)
+            RETURN friend.player_id as player_id, friend.username as username, 'friend' as relation_type
+            UNION
+            MATCH (p:Player {player_id: $player_id})-[:FOLLOWS]->(following:Player)
+            RETURN following.player_id as player_id, following.username as username, 'following' as relation_type
+            UNION
+            MATCH (p:Player {player_id: $player_id})<-[:FOLLOWS]-(follower:Player)
+            RETURN follower.player_id as player_id, follower.username as username, 'follower' as relation_type
+            """
+            result = await session.run(query, player_id=player_id)
+            records = await result.data()
+            return records
+
+    @staticmethod
+    async def get_global_statistics() -> dict:
+        """Get global statistics using WITH and multiple aggregations"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player)
+            WITH count(p) as total_players
+            OPTIONAL MATCH ()-[f:FRIENDS_WITH]->()
+            WITH total_players, count(f) as total_friendships
+            OPTIONAL MATCH ()-[fo:FOLLOWS]->()
+            WITH total_players, total_friendships, count(fo) as total_follows
+            OPTIONAL MATCH (c:Clan)
+            WITH total_players, total_friendships, total_follows, count(c) as total_clans
+            OPTIONAL MATCH (pr:Party)
+            WITH total_players, total_friendships, total_follows, total_clans, count(pr) as total_parties
+            OPTIONAL MATCH ()-[m:SENT_MESSAGE]->()
+            RETURN total_players, total_friendships, total_follows, total_clans, total_parties, count(m) as total_messages
+            """
+            result = await session.run(query)
+            record = await result.single()
+            if record:
+                return dict(record)
+            return {}
+
+    @staticmethod
+    async def find_influencers(min_followers: int = 3, limit: int = 10) -> list:
+        """Find influential players using WITH, WHERE, ORDER BY, LIMIT"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player)
+            OPTIONAL MATCH ()-[r:FOLLOWS]->(p)
+            WITH p, count(r) as follower_count
+            WHERE follower_count >= $min_followers
+            OPTIONAL MATCH (p)-[f:FRIENDS_WITH]->()
+            WITH p, follower_count, count(f) as friend_count
+            RETURN p.player_id as player_id, p.username as username, 
+                   follower_count, friend_count,
+                   follower_count + friend_count as influence_score
+            ORDER BY influence_score DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, min_followers=min_followers, limit=limit)
+            records = await result.data()
+            return records
+
+    @staticmethod
+    async def get_connection_chain(start_id: str, end_id: str, max_depth: int = 4) -> list:
+        """Find connection chain between two players using variable-length path"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = f"""
+            MATCH path = shortestPath(
+                (start:Player {{player_id: $start_id}})-[:FRIENDS_WITH*1..{max_depth}]-(end:Player {{player_id: $end_id}})
+            )
+            WITH path, [n IN nodes(path) | n.username] as usernames
+            RETURN usernames, length(path) as hops
+            """
+            result = await session.run(query, start_id=start_id, end_id=end_id)
+            record = await result.single()
+            if record:
+                return {"chain": record["usernames"], "hops": record["hops"]}
+            return {"chain": [], "hops": -1}
+
+    @staticmethod
+    async def bulk_add_property(label: str, property_name: str, property_value: str) -> int:
+        """Add property to all nodes of a label using FOREACH pattern"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (n)
+            WHERE $label IN labels(n)
+            WITH collect(n) as nodes
+            FOREACH (node IN nodes | SET node[$prop_name] = $prop_value)
+            RETURN size(nodes) as updated_count
+            """
+            result = await session.run(query, label=label, prop_name=property_name, prop_value=property_value)
+            record = await result.single()
+            return record["updated_count"] if record else 0
+
+    @staticmethod
+    async def get_clan_rankings(limit: int = 10) -> list:
+        """Get clan rankings by member count using aggregation and ORDER BY"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (c:Clan)
+            OPTIONAL MATCH (p:Player)-[:MEMBER_OF]->(c)
+            WITH c, count(p) as member_count
+            RETURN c.clan_id as clan_id, c.name as clan_name, c.level as clan_level,
+                   member_count
+            ORDER BY member_count DESC, c.level DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, limit=limit)
+            records = await result.data()
+            return records
+
+    @staticmethod
+    async def get_activity_feed(player_id: str, limit: int = 20) -> list:
+        """Get activity feed combining multiple relationship types using UNION ALL"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[r:SENT_MESSAGE]->(target:Player)
+            RETURN 'sent_message' as action, target.username as target, r.timestamp as timestamp
+            ORDER BY r.timestamp DESC
+            LIMIT $limit
+            UNION ALL
+            MATCH (p:Player {player_id: $player_id})-[r:FRIENDS_WITH]->(friend:Player)
+            RETURN 'became_friends' as action, friend.username as target, r.since as timestamp
+            ORDER BY r.since DESC
+            LIMIT $limit
+            UNION ALL
+            MATCH (p:Player {player_id: $player_id})-[r:FOLLOWS]->(followed:Player)
+            RETURN 'started_following' as action, followed.username as target, r.since as timestamp
+            ORDER BY r.since DESC
+            LIMIT $limit
+            """
+            result = await session.run(query, player_id=player_id, limit=limit)
+            records = await result.data()
+            return records

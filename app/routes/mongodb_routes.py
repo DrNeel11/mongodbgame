@@ -240,6 +240,12 @@ async def delete_match(match_id: str):
 leaderboards_router = APIRouter(prefix="/leaderboards", tags=["Leaderboards (MongoDB)"])
 
 
+@leaderboards_router.get("/", response_model=List[dict])
+async def get_all_leaderboards(limit: int = Query(default=50, le=100)):
+    """READ: Get all leaderboards"""
+    return await LeaderboardsCRUD.get_all_leaderboards(limit=limit)
+
+
 @leaderboards_router.post("/", response_model=dict, status_code=201)
 async def create_leaderboard(leaderboard: LeaderboardCreate):
     """CREATE: Create a new leaderboard"""

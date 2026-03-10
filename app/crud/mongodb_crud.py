@@ -319,6 +319,14 @@ class LeaderboardsCRUD:
     
     # READ
     @staticmethod
+    async def get_all_leaderboards(limit: int = 50) -> List[dict]:
+        """Get all leaderboards"""
+        collection = get_leaderboards_collection()
+        cursor = collection.find().limit(limit)
+        leaderboards = await cursor.to_list(length=limit)
+        return [serialize_doc(lb) for lb in leaderboards]
+    
+    @staticmethod
     async def get_leaderboard(leaderboard_id: str) -> Optional[dict]:
         """Get a leaderboard by ID"""
         collection = get_leaderboards_collection()

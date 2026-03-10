@@ -16,6 +16,7 @@ from app.models.neo4j_models import (
 from app.crud.neo4j_crud import (
     PlayerNodesCRUD, FriendshipsCRUD, BlockingCRUD, 
     MessagingCRUD, PartyCRUD, ClanCRUD, FollowCRUD,
+    AdvancedNeo4jQueries,
 )
 from app.database.neo4j_db import is_neo4j_connected
 
@@ -498,3 +499,106 @@ async def unfollow_player(follower_id: str, following_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Follow relationship not found")
     return {"message": "Unfollowed successfully"}
+
+
+# ==================== ANALYTICS ROUTER ====================
+analytics_router = APIRouter(prefix="/analytics", tags=["Analytics (Neo4j)"], dependencies=[Depends(require_neo4j)])
+
+
+@analytics_router.get("/leaderboard")
+async def get_leaderboard(
+    order_by: str = Query("friends", description="Order by: friends, followers, messages, username"),
+    limit: int = Query(10, ge=1, le=100),
+    skip: int = Query(0, ge=0)
+):
+    """Get player leaderboard using ORDER BY, LIMIT, SKIP"""
+    return await AdvancedNeo4jQueries.get_players_leaderboard(order_by, limit, skip)
+
+
+@analytics_router.get("/player/{player_id}/stats")
+async def get_player_statistics(player_id: str):
+    """Get comprehensive player statistics using WITH and aggregation"""
+    stats = await AdvancedNeo4jQueries.get_player_statistics(player_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Player not found")
+    return stats
+
+
+@analytics_router.get("/player/{player_id}/social-graph")
+async def get_social_graph(player_id: str):
+    """Get all social connections using UNION (friends + following + followers)"""
+    return await AdvancedNeo4jQueries.get_social_graph_union(player_id)
+
+
+@analytics_router.get("/global-stats")
+async def get_global_statistics():
+    """Get global platform statistics using WITH and aggregation"""
+    return await AdvancedNeo4jQueries.get_global_statistics()
+
+
+@analytics_router.get("/influencers")
+async def find_influencers(
+    min_followers: int = Query(3, ge=0),
+    limit: int = Query(10, ge=1, le=100)
+):
+    """Find influential players using WITH, WHERE, ORDER BY, LIMIT"""
+    return await AdvancedNeo4jQueries.find_influencers(min_followers, limit)
+
+
+@analytics_router.get("/connection-chain")
+async def get_connection_chain(
+    start_id: str = Query(..., description="Starting player ID"),
+    end_id: str = Query(..., description="Target player ID"),
+    max_depth: int = Query(4, ge=1, le=6)
+):
+    """Find connection chain between two players"""
+    return await AdvancedNeo4jQueries.get_connection_chain(start_id, end_id, max_depth)
+
+
+@analytics_router.get("/shortest-path")
+async def shortest_path(player1_id: str, player2_id: str):
+    """Find shortest path between two players"""
+    return await AdvancedNeo4jQueries.shortest_path_between(player1_id, player2_id)
+
+
+@analytics_router.get("/friend-recommendations/{player_id}")
+async def recommend_friends(player_id: str, limit: int = Query(5, ge=1, le=20)):
+    """Get friend recommendations based on common friends"""
+    return await AdvancedNeo4jQueries.recommend_friends_by_common_friends(player_id, limit)
+
+
+@analytics_router.get("/player/{player_id}/degree")
+async def get_degree_centrality(player_id: str):
+    """Get player's degree centrality (connection count)"""
+    degree = await AdvancedNeo4jQueries.degree_centrality(player_id)
+    return {"player_id": player_id, "degree": degree}
+
+
+@analytics_router.get("/mutual-friends")
+async def get_mutual_friends_count(player1_id: str, player2_id: str):
+    """Get count of mutual friends between two players"""
+    count = await AdvancedNeo4jQueries.mutual_friends_count(player1_id, player2_id)
+    return {"player1_id": player1_id, "player2_id": player2_id, "mutual_friends": count}
+
+
+@analytics_router.get("/clan-rankings")
+async def get_clan_rankings(limit: int = Query(10, ge=1, le=50)):
+    """Get clan rankings by member count using aggregation and ORDER BY"""
+    return await AdvancedNeo4jQueries.get_clan_rankings(limit)
+
+
+@analytics_router.get("/player/{player_id}/activity-feed")
+async def get_activity_feed(player_id: str, limit: int = Query(20, ge=1, le=100)):
+    """Get player activity feed using UNION ALL"""
+    return await AdvancedNeo4jQueries.get_activity_feed(player_id, limit)
+
+
+@analytics_router.post("/bulk-property")
+async def bulk_add_property(
+    label: str = Query(..., description="Node label (e.g., Player, Clan)"),
+    property_name: str = Query(..., description="Property name to add"),
+    property_value: str = Query(..., description="Property value to set")
+):
+    """Add property to all nodes of a label using FOREACH pattern"""
+    count = await AdvancedNeo4jQueries.bulk_add_property(label, property_name, property_value)
+    return {"message": f"Updated {count} nodes", "updated_count": count}
