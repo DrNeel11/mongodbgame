@@ -113,7 +113,8 @@ export const partiesAPI = {
   invite: (partyId, inviterId, inviteeId) => api.post(`/graph/parties/${partyId}/invite`, { inviter_id: inviterId, invitee_id: inviteeId }),
   join: (partyId, playerId) => api.post(`/graph/parties/${partyId}/join?player_id=${playerId}`),
   leave: (partyId, playerId) => api.delete(`/graph/parties/${partyId}/${playerId}`),
-  update: (partyId, data) => api.patch(`/graph/parties/${partyId}`, data)
+  update: (partyId, data) => api.patch(`/graph/parties/${partyId}`, data),
+  disband: (partyId) => api.delete(`/graph/parties/${partyId}`)
 }
 
 // Neo4j APIs - Clans
@@ -126,7 +127,9 @@ export const clansAPI = {
   join: (clanId, playerId) => api.post(`/graph/clans/${clanId}/join?player_id=${playerId}`),
   leave: (clanId, playerId) => api.delete(`/graph/clans/${clanId}/${playerId}`),
   search: (term, limit = 20) => api.get(`/graph/clans/search?term=${term}&limit=${limit}`),
-  update: (clanId, data) => api.patch(`/graph/clans/${clanId}`, data)
+  update: (clanId, data) => api.patch(`/graph/clans/${clanId}`, data),
+  updateMemberRole: (clanId, playerId, role, rank) => api.patch(`/graph/clans/${clanId}/member/${playerId}`, { role, rank }),
+  disband: (clanId) => api.delete(`/graph/clans/${clanId}`)
 }
 
 // Neo4j APIs - Follow
