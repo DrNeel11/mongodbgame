@@ -91,6 +91,16 @@ friends_router = APIRouter(prefix="/friends", tags=["Friends (Neo4j)"], dependen
 @friends_router.post("/request", response_model=dict, status_code=201)
 async def send_friend_request(request: FriendRequestCreate):
     """CREATE: Send a friend request"""
+    # Check if already friends
+    already_friends = await FriendshipsCRUD.check_already_friends(request.from_player_id, request.to_player_id)
+    if already_friends:
+        raise HTTPException(status_code=409, detail="Players are already friends")
+    
+    # Check if request already exists
+    request_exists = await FriendshipsCRUD.check_friend_request_exists(request.from_player_id, request.to_player_id)
+    if request_exists:
+        raise HTTPException(status_code=409, detail="Friend request already sent")
+    
     result = await FriendshipsCRUD.send_friend_request(
         request.from_player_id, 
         request.to_player_id, 
@@ -161,6 +171,15 @@ async def remove_friend(player_id: str, friend_id: str):
     return {"message": "Friend removed successfully"}
 
 
+@friends_router.delete("/nickname")
+async def remove_friend_nickname(player_id: str, friend_id: str):
+    """REMOVE: Clear nickname from friend relationship"""
+    removed = await FriendshipsCRUD.remove_friend_nickname(player_id, friend_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Friendship not found")
+    return {"message": "Friend nickname removed successfully"}
+
+
 # ==================== BLOCKING ROUTER ====================
 blocking_router = APIRouter(prefix="/block", tags=["Blocking (Neo4j)"], dependencies=[Depends(require_neo4j)])
 
@@ -168,6 +187,11 @@ blocking_router = APIRouter(prefix="/block", tags=["Blocking (Neo4j)"], dependen
 @blocking_router.post("/", response_model=dict, status_code=201)
 async def block_player(block: BlockCreate):
     """CREATE: Block a player"""
+    # Check if already blocked
+    already_blocked = await BlockingCRUD.check_already_blocked(block.blocker_id, block.blocked_id)
+    if already_blocked:
+        raise HTTPException(status_code=409, detail="Player is already blocked")
+    
     result = await BlockingCRUD.block_player(
         block.blocker_id, 
         block.blocked_id, 
@@ -284,6 +308,15 @@ async def leave_conversation(conversation_id: str, player_id: str):
     return {"message": "Left conversation successfully"}
 
 
+@messaging_router.patch("/conversation/{conversation_id}/unmute")
+async def clear_muted_status(conversation_id: str, player_id: str):
+    """REMOVE: Clear muted status from conversation (unmute)"""
+    cleared = await MessagingCRUD.clear_muted_status(player_id, conversation_id)
+    if not cleared:
+        raise HTTPException(status_code=404, detail="Conversation membership not found")
+    return {"message": "Conversation unmuted successfully"}
+
+
 # ==================== PARTY ROUTER ====================
 party_router = APIRouter(prefix="/parties", tags=["Parties (Neo4j)"], dependencies=[Depends(require_neo4j)])
 
@@ -305,6 +338,15 @@ async def create_party(party: PartyCreate):
 @party_router.post("/{party_id}/invite", response_model=dict)
 async def invite_to_party(party_id: str, invite: PartyInviteCreate):
     """CREATE: Invite a player to a party"""
+    # Check if already invited or member
+    already_invited = await PartyCRUD.check_already_invited_to_party(party_id, invite.invitee_id)
+    if already_invited:
+        raise HTTPException(status_code=409, detail="Player is already invited to this party")
+    
+    already_member = await PartyCRUD.check_already_in_party(party_id, invite.invitee_id)
+    if already_member:
+        raise HTTPException(status_code=409, detail="Player is already a member of this party")
+    
     result = await PartyCRUD.invite_to_party(party_id, invite.inviter_id, invite.invitee_id)
     if not result:
         raise HTTPException(status_code=400, detail="Failed to invite player")
@@ -391,6 +433,11 @@ async def create_clan(clan: ClanCreate):
 @clan_router.post("/{clan_id}/join", response_model=dict)
 async def join_clan(clan_id: str, player_id: str):
     """CREATE: Join a clan"""
+    # Check if already in clan
+    already_member = await ClanCRUD.check_already_in_clan(clan_id, player_id)
+    if already_member:
+        raise HTTPException(status_code=409, detail="Player is already a member of this clan")
+    
     result = await ClanCRUD.join_clan(clan_id, player_id)
     if not result:
         raise HTTPException(status_code=400, detail="Failed to join clan")
@@ -467,6 +514,15 @@ async def disband_clan(clan_id: str):
     return {"message": "Clan disbanded successfully"}
 
 
+@clan_router.delete("/{clan_id}/description")
+async def clear_clan_description(clan_id: str):
+    """REMOVE: Clear description from a clan"""
+    cleared = await ClanCRUD.clear_clan_description(clan_id)
+    if not cleared:
+        raise HTTPException(status_code=404, detail="Clan not found")
+    return {"message": "Clan description removed successfully"}
+
+
 # ==================== FOLLOW ROUTER ====================
 follow_router = APIRouter(prefix="/follow", tags=["Follow (Neo4j)"], dependencies=[Depends(require_neo4j)])
 
@@ -474,6 +530,11 @@ follow_router = APIRouter(prefix="/follow", tags=["Follow (Neo4j)"], dependencie
 @follow_router.post("/", response_model=dict, status_code=201)
 async def follow_player(follow: FollowCreate):
     """CREATE: Follow a player"""
+    # Check if already following
+    already_following = await FollowCRUD.check_already_following(follow.follower_id, follow.following_id)
+    if already_following:
+        raise HTTPException(status_code=409, detail="Already following this player")
+    
     result = await FollowCRUD.follow_player(follow.follower_id, follow.following_id)
     if not result:
         raise HTTPException(status_code=400, detail="Failed to follow player")

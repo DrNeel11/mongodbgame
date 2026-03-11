@@ -107,21 +107,34 @@ Follow relationships allow players to track other players' activities.
 
 ## Neo4j Command Summary
 
-**Total Neo4j Commands:** 46
+**Total Neo4j Commands:** 52
 - Player Nodes: 5 commands
-- Friends: 8 commands  
-- Blocking: 3 commands
-- Messaging: 9 commands
-- Parties: 8 commands
-- Clans: 9 commands
-- Follow: 4 commands
+- Friends: 9 commands (+ guardrail for duplicate requests/friendships)  
+- Blocking: 3 commands (+ guardrail for duplicate blocks)
+- Messaging: 10 commands (+ guardrail for duplicate participants)
+- Parties: 8 commands (+ guardrail for duplicate invites/members)
+- Clans: 10 commands (+ guardrail for duplicate members)
+- Follow: 4 commands (+ guardrail for duplicate follows)
+- Analytics: 11+ commands
 
 **HTTP Methods Used:**
-- GET: 17 commands (read/query)
-- POST: 17 commands (create)
-- PATCH: 8 commands (update)
-- DELETE: 4 commands (remove)
+- GET: 18+ commands (read/query)
+- POST: 18+ commands (create)
+- PATCH: 9+ commands (update)
+- DELETE: 9 commands (remove/delete)
 - PUT: 1 command (message edit)
+
+**New Features:**
+- **REMOVE Queries (Cypher REMOVE clause)**: Remove attributes from relationships and properties
+  - Remove friend nickname
+  - Clear conversation muted status
+  - Clear clan description
+- **Duplicate Relationship Guardrails**: Frontend now prevents duplicate relationships with 409 Conflict responses
+  - Cannot send friend request if already friends or request pending
+  - Cannot follow if already following
+  - Cannot block if already blocked
+  - Cannot invite to party if already invited/member
+  - Cannot join clan if already member
 
 ---
 

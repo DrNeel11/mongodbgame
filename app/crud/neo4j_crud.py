@@ -285,6 +285,48 @@ class FriendshipsCRUD:
             result = await session.run(query, player_id=player_id, friend_id=friend_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_friends(player1_id: str, player2_id: str) -> bool:
+        """Check if two players are already friends"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p1:Player {player_id: $p1})-[:FRIENDS_WITH]-(p2:Player {player_id: $p2})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, p1=player1_id, p2=player2_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
+    
+    @staticmethod
+    async def check_friend_request_exists(from_player_id: str, to_player_id: str) -> bool:
+        """Check if a friend request already exists"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (from:Player {player_id: $from})-[:SENT_REQUEST]->(to:Player {player_id: $to})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, **{"from": from_player_id, "to": to_player_id})
+            record = await result.single()
+            return record["count"] > 0 if record else False
+    
+    # REMOVE - Clear friend nickname
+    @staticmethod
+    async def remove_friend_nickname(player_id: str, friend_id: str) -> bool:
+        """Remove nickname from a friend relationship"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[f:FRIENDS_WITH]->(friend:Player {player_id: $friend_id})
+            REMOVE f.nickname
+            RETURN count(f) as removed
+            """
+            result = await session.run(query, player_id=player_id, friend_id=friend_id)
+            record = await result.single()
+            return record["removed"] > 0 if record else False
 
 
 # ==================== BLOCKING CRUD ====================
@@ -346,6 +388,20 @@ class BlockingCRUD:
             result = await session.run(query, blocker_id=blocker_id, blocked_id=blocked_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_blocked(blocker_id: str, blocked_id: str) -> bool:
+        """Check if a player is already blocked"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (blocker:Player {player_id: $blocker})-[:BLOCKED]->(blocked:Player {player_id: $blocked})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, blocker=blocker_id, blocked=blocked_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
 
 
 # ==================== MESSAGING CRUD ====================
@@ -534,6 +590,35 @@ class MessagingCRUD:
             result = await session.run(query, player_id=player_id, conv_id=conversation_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_participant(player_id: str, conversation_id: str) -> bool:
+        """Check if player is already a participant in conversation"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:MEMBER_OF]->(c:Conversation {conversation_id: $conv_id})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, player_id=player_id, conv_id=conversation_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
+    
+    # REMOVE - Clear muted status (unmute)
+    @staticmethod
+    async def clear_muted_status(player_id: str, conversation_id: str) -> bool:
+        """Remove muted status from conversation membership"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[m:MEMBER_OF]->(c:Conversation {conversation_id: $conv_id})
+            REMOVE m.muted
+            RETURN count(m) as removed
+            """
+            result = await session.run(query, player_id=player_id, conv_id=conversation_id)
+            record = await result.single()
+            return record["removed"] > 0 if record else False
 
 
 # ==================== PARTY CRUD ====================
@@ -700,6 +785,33 @@ class PartyCRUD:
             result = await session.run(query, party_id=party_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_in_party(party_id: str, player_id: str) -> bool:
+        """Check if player is already a member of party"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:IN_PARTY]->(party:Party {party_id: $party_id})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, player_id=player_id, party_id=party_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
+    
+    @staticmethod
+    async def check_already_invited_to_party(party_id: str, player_id: str) -> bool:
+        """Check if player is already invited to party"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:INVITED_TO]->(party:Party {party_id: $party_id})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, player_id=player_id, party_id=party_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
 
 
 # ==================== CLAN CRUD ====================
@@ -892,6 +1004,35 @@ class ClanCRUD:
             result = await session.run(query, clan_id=clan_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_in_clan(clan_id: str, player_id: str) -> bool:
+        """Check if player is already a member of clan"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (p:Player {player_id: $player_id})-[:BELONGS_TO]->(clan:Clan {clan_id: $clan_id})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, player_id=player_id, clan_id=clan_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
+    
+    # REMOVE - Clear clan description
+    @staticmethod
+    async def clear_clan_description(clan_id: str) -> bool:
+        """Remove description from a clan"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (clan:Clan {clan_id: $clan_id})
+            REMOVE clan.description
+            RETURN count(clan) as removed
+            """
+            result = await session.run(query, clan_id=clan_id)
+            record = await result.single()
+            return record["removed"] > 0 if record else False
 
 
 # ==================== FOLLOW CRUD ====================
@@ -957,6 +1098,20 @@ class FollowCRUD:
             result = await session.run(query, follower_id=follower_id, following_id=following_id)
             record = await result.single()
             return record["deleted"] > 0 if record else False
+    
+    # ===== DUPLICATE CHECKS =====
+    @staticmethod
+    async def check_already_following(follower_id: str, following_id: str) -> bool:
+        """Check if already following a player"""
+        driver = get_neo4j_driver()
+        async with driver.session() as session:
+            query = """
+            MATCH (follower:Player {player_id: $follower})-[:FOLLOWS]->(following:Player {player_id: $following})
+            RETURN count(*) as count
+            """
+            result = await session.run(query, follower=follower_id, following=following_id)
+            record = await result.single()
+            return record["count"] > 0 if record else False
 
 
 # ==================== ADVANCED NEO4J QUERIES ====================

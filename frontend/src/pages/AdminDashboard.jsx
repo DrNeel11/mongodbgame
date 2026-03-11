@@ -227,6 +227,16 @@ function Neo4jSection() {
           onExecute={(v) => friendsAPI.setNickname(v.player_id, v.friend_id, v.nickname)}
         />
         <CommandCard
+          title="Remove Nickname"
+          method="DELETE"
+          description="REMOVE"
+          inputs={[
+            { name: 'player_id', placeholder: 'Your ID' },
+            { name: 'friend_id', placeholder: 'Friend ID' }
+          ]}
+          onExecute={(v) => friendsAPI.removeNickname(v.player_id, v.friend_id)}
+        />
+        <CommandCard
           title="Decline Request"
           method="DELETE"
           inputs={[
@@ -355,6 +365,16 @@ function Neo4jSection() {
             ]}
           ]}
           onExecute={(v) => messagesAPI.mute(v.conversation_id, v.player_id, v.muted === 'true')}
+        />
+        <CommandCard
+          title="Clear Muted Status"
+          method="PATCH"
+          description="REMOVE"
+          inputs={[
+            { name: 'conversation_id', placeholder: 'Conversation ID' },
+            { name: 'player_id', placeholder: 'Player ID' }
+          ]}
+          onExecute={(v) => messagesAPI.unmute(v.conversation_id, v.player_id)}
         />
         <CommandCard
           title="Leave Conversation"
@@ -534,6 +554,13 @@ function Neo4jSection() {
             { name: 'rank', type: 'number', placeholder: 'Rank (optional)' }
           ]}
           onExecute={(v) => clansAPI.updateMemberRole(v.clan_id, v.player_id, v.role, v.rank ? parseInt(v.rank) : undefined)}
+        />
+        <CommandCard
+          title="Clear Description"
+          method="DELETE"
+          description="REMOVE"
+          inputs={[{ name: 'clan_id', placeholder: 'Clan ID' }]}
+          onExecute={(v) => clansAPI.clearDescription(v.clan_id)}
         />
         <CommandCard
           title="Disband Clan"

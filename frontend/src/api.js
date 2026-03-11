@@ -78,6 +78,7 @@ export const friendsAPI = {
   getMutual: (player1Id, player2Id) => api.get(`/graph/friends/mutual/${player1Id}/${player2Id}`),
   getSuggestions: (playerId, limit = 10) => api.get(`/graph/friends/suggestions/${playerId}?limit=${limit}`),
   setNickname: (playerId, friendId, nickname) => api.patch(`/graph/friends/nickname?player_id=${playerId}&friend_id=${friendId}&nickname=${nickname}`),
+  removeNickname: (playerId, friendId) => api.delete(`/graph/friends/nickname?player_id=${playerId}&friend_id=${friendId}`),
   declineRequest: (fromPlayerId, toPlayerId) => api.delete(`/graph/friends/request?from_player_id=${fromPlayerId}&to_player_id=${toPlayerId}`),
   remove: (playerId, friendId) => api.delete(`/graph/friends?player_id=${playerId}&friend_id=${friendId}`)
 }
@@ -101,6 +102,7 @@ export const messagesAPI = {
   edit: (messageId, content) => api.put(`/graph/messages/${messageId}`, { content }),
   delete: (messageId) => api.delete(`/graph/messages/${messageId}`),
   mute: (conversationId, playerId, muted = true) => api.patch(`/graph/messages/conversation/${conversationId}/mute?player_id=${playerId}&muted=${muted}`),
+  unmute: (conversationId, playerId) => api.patch(`/graph/messages/conversation/${conversationId}/unmute?player_id=${playerId}`),
   leave: (conversationId, playerId) => api.delete(`/graph/messages/conversation/${conversationId}/leave?player_id=${playerId}`)
 }
 
@@ -129,6 +131,7 @@ export const clansAPI = {
   search: (term, limit = 20) => api.get(`/graph/clans/search?term=${term}&limit=${limit}`),
   update: (clanId, data) => api.patch(`/graph/clans/${clanId}`, data),
   updateMemberRole: (clanId, playerId, role, rank) => api.patch(`/graph/clans/${clanId}/member/${playerId}`, { role, rank }),
+  clearDescription: (clanId) => api.delete(`/graph/clans/${clanId}/description`),
   disband: (clanId) => api.delete(`/graph/clans/${clanId}`)
 }
 
