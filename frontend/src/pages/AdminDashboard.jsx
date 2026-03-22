@@ -292,16 +292,21 @@ function Neo4jSection() {
         <CommandCard
           title="Create Conversation"
           method="POST"
+          // '''
+          // inputs={[
+          //   { name: 'type', type: 'select', options: [
+          //     { value: 'direct', label: 'Direct' },
+          //     { value: 'group', label: 'Group' }
+          //   ]},
+          //   { name: 'participants', placeholder: 'IDs (comma sep)' },
+          //   { name: 'name', placeholder: 'Name (optional)' }
+          // ]}
           inputs={[
-            { name: 'type', type: 'select', options: [
-              { value: 'direct', label: 'Direct' },
-              { value: 'group', label: 'Group' }
-            ]},
-            { name: 'participants', placeholder: 'IDs (comma sep)' },
-            { name: 'name', placeholder: 'Name (optional)' }
+             { name: 'participants', placeholder: 'IDs (comma sep)' },
+             { name: 'name', placeholder: 'Name (optional)' }
           ]}
           onExecute={(v) => messagesAPI.createConversation({ 
-            conversation_type: v.type, 
+            conversation_type: 'group', 
             participant_ids: v.participants.split(',').map(s => s.trim()),
             name: v.name || null
           })}
@@ -612,7 +617,7 @@ function Neo4jSection() {
         <CommandCard
           title="Leaderboard"
           method="GET"
-          description="ORDER BY, LIMIT, SKIP"
+          description="ORDER BY, LIMIT"
           inputs={[
             { name: 'order_by', type: 'select', options: [
               { value: 'friends', label: 'By Friends' },
@@ -670,7 +675,7 @@ function Neo4jSection() {
           description="Common friends"
           inputs={[
             { name: 'player_id', placeholder: 'Player ID' },
-            { name: 'limit', type: 'number', placeholder: 'Limit', defaultValue: '5' }
+            { name: 'limit', type: 'number', placeholder: 'Limit', defaultValue: '1' }
           ]}
           onExecute={(v) => analyticsAPI.getFriendRecommendations(v.player_id, v.limit)}
         />
@@ -694,13 +699,31 @@ function Neo4jSection() {
         <CommandCard
           title="Mutual Friends"
           method="GET"
-          description="Path matching"
+          description="Count mutual friends"
           inputs={[
             { name: 'player1_id', placeholder: 'Player 1 ID' },
             { name: 'player2_id', placeholder: 'Player 2 ID' }
           ]}
           onExecute={(v) => analyticsAPI.getMutualFriendsCount(v.player1_id, v.player2_id)}
         />
+        <CommandCard
+  title="Bulk Add Property"
+  method="POST"
+  description="Add a property to all nodes of a given label"
+  inputs={[
+    { name: 'label', placeholder: 'Node Label (e.g., Player)' },
+    { name: 'propertyName', placeholder: 'Property Name (e.g., status)' },
+    { name: 'propertyValue', placeholder: 'Property Value (e.g., active)' }
+  ]}
+  onExecute={(v) => 
+    analyticsAPI.bulkAddProperty(
+      v.label,
+      v.propertyName,
+      v.propertyValue
+    )
+  }
+      />
+        
       </div>
     </div>
   )

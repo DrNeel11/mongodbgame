@@ -409,7 +409,8 @@ class MessagingCRUD:
     
     # CREATE - Conversation
     @staticmethod
-    async def create_conversation(conversation_type: str, participant_ids: List[str], name: str = None) -> dict:
+    #conversation_type: str, 
+    async def create_conversation(conversation_type: str,participant_ids: List[str], name: str = None) -> dict:
         """Create a new conversation"""
         driver = get_neo4j_driver()
         conversation_id = generate_id()
@@ -1129,7 +1130,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, p1=player1_id, p2=player2_id)
             record = await result.single()
             return _serialize_record(record) if record else None
-
+#abi
     @staticmethod
     async def recommend_friends_by_common_friends(player_id: str, limit: int = 10) -> List[dict]:
         """Recommend players based on friends-of-friends who are not already friends or blocked."""
@@ -1145,7 +1146,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, player_id=player_id, limit=limit)
             records = await result.data()
             return _serialize_records(records)
-
+#abi
     @staticmethod
     async def degree_centrality(player_id: str) -> int:
         driver = get_neo4j_driver()
@@ -1157,7 +1158,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, player_id=player_id)
             record = await result.single()
             return int(record["degree"]) if record else 0
-
+#neel
     @staticmethod
     async def mutual_friends_count(player1_id: str, player2_id: str) -> int:
         driver = get_neo4j_driver()
@@ -1171,7 +1172,7 @@ class AdvancedNeo4jQueries:
             return int(record["mutual"]) if record else 0
 
     # ========== Advanced Queries with ORDER BY, LIMIT, SKIP ==========
-    
+#aadhav    
     @staticmethod
     async def get_players_leaderboard(order_by: str = "friends", limit: int = 10, skip: int = 0) -> list:
         """Get player leaderboard sorted by various metrics using ORDER BY, LIMIT, SKIP"""
@@ -1218,7 +1219,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, limit=limit, skip=skip)
             records = await result.data()
             return records
-
+#neel
     @staticmethod
     async def get_player_statistics(player_id: str) -> dict:
         """Get comprehensive statistics for a player using WITH and aggregation"""
@@ -1246,7 +1247,7 @@ class AdvancedNeo4jQueries:
             if record:
                 return dict(record)
             return {}
-
+#aadhav
     @staticmethod
     async def get_social_graph_union(player_id: str) -> list:
         """Get all social connections using UNION (friends + following + followers)"""
@@ -1265,7 +1266,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, player_id=player_id)
             records = await result.data()
             return records
-
+#neel
     @staticmethod
     async def get_global_statistics() -> dict:
         """Get global statistics using WITH and multiple aggregations"""
@@ -1290,7 +1291,7 @@ class AdvancedNeo4jQueries:
             if record:
                 return dict(record)
             return {}
-
+#akhil
     @staticmethod
     async def find_influencers(min_followers: int = 3, limit: int = 10) -> list:
         """Find influential players using WITH, WHERE, ORDER BY, LIMIT"""
@@ -1330,7 +1331,7 @@ class AdvancedNeo4jQueries:
             if record:
                 return {"chain": record["usernames"], "hops": record["hops"]}
             return {"chain": [], "hops": -1}
-
+#keerti
     @staticmethod
     async def bulk_add_property(label: str, property_name: str, property_value: str) -> int:
         """Add property to all nodes of a label using FOREACH pattern"""
@@ -1346,7 +1347,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, label=label, prop_name=property_name, prop_value=property_value)
             record = await result.single()
             return record["updated_count"] if record else 0
-
+#keerti
     @staticmethod
     async def get_clan_rankings(limit: int = 10) -> list:
         """Get clan rankings by member count using aggregation and ORDER BY"""
@@ -1364,7 +1365,7 @@ class AdvancedNeo4jQueries:
             result = await session.run(query, limit=limit)
             records = await result.data()
             return records
-
+#akhil
     @staticmethod
     async def get_activity_feed(player_id: str, limit: int = 20) -> list:
         """Get activity feed combining multiple relationship types using UNION ALL"""
