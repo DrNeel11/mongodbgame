@@ -1,0 +1,134 @@
+# Spark Configuration File
+# Supports multiple deployment modes: local, local-cluster, yarn-client, yarn-cluster
+
+spark:
+  # Application name in Spark UI
+  app_name: "GameDB-Analytics"
+  
+  # =========================================================================
+  # DEPLOYMENT MODE
+  # =========================================================================
+  # Options: "local[n]" (local cores), "local[*]" (all cores), "yarn", "mesos", "k8s"
+  master: "local[*]"
+  deployment_mode: "local"  # For tracking/documentation
+  
+  # =========================================================================
+  # MEMORY & COMPUTE
+  # =========================================================================
+  driver:
+    memory: "4g"           # Driver JVM memory
+    cores: 1               # Driver cores
+  
+  executor:
+    memory: "4g"           # Executor JVM memory per instance
+    cores: 4               # Executor cores per instance
+    instances: 2           # Number of executor instances (ignored in local mode)
+  
+  # =========================================================================
+  # SQL & SHUFFLING
+  # =========================================================================
+  sql:
+    shuffle_partitions: 200            # Default partition count for SQL shuffles
+    adaptive_enabled: true             # Enable adaptive query execution
+  
+  # =========================================================================
+  # MONGODB CONNECTOR
+  # =========================================================================
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    database: "gamedb"
+    # Batch sizes for reads
+    read_batch_size: 5000              # Records per batch
+    write_batch_size: 1000             # Records per batch
+    # Connection pooling
+    connection_pool_min: 5
+    connection_pool_max: 50
+  
+  # =========================================================================
+  # NEO4J CONNECTOR (optional)
+  # =========================================================================
+  neo4j:
+    uri: "neo4j://localhost:7687"
+    user: "neo4j"
+    password: "${NEO4J_PASSWORD}"      # Use environment variable
+    database: "neo4j"
+  
+  # =========================================================================
+  # STREAMING (for Structured Streaming jobs)
+  # =========================================================================
+  streaming:
+    # Micro-batch interval for Structured Streaming
+    trigger_interval_seconds: 60       # Process batches every 60 seconds
+    # For near-real-time: use 10-30 seconds
+    # For batch processing: use 300+ seconds
+    watermark_delay_minutes: 5         # Allow late events up to 5 minutes
+  
+  # =========================================================================
+  # LOGGING & MONITORING
+  # =========================================================================
+  logging:
+    level: "INFO"                      # DEBUG, INFO, WARN, ERROR
+    log_file: "logs/spark_jobs.log"
+    max_log_file_size: "100MB"
+    max_log_files: 10
+  
+  # =========================================================================
+  # PERFORMANCE TUNING
+  # =========================================================================
+  performance:
+    # Coalesce small partitions
+    coalesce_partitions_enabled: true
+    coalesce_min_partitions: 50
+    
+    # Spill to disk for memory-intensive operations
+    external_shuffle_enabled: true
+    
+    # Serialization
+    serializer: "org.apache.spark.serializer.KryoSerializer"
+    kryo_buffer_max: "512m"
+    
+    # Network
+    network_timeout: 120s
+    rpc_ask_timeout: 120s
+
+# =========================================================================
+# DEPLOYMENT-SPECIFIC OVERRIDES
+# =========================================================================
+
+deployments:
+  development:
+    master: "local[*]"
+    spark:
+      driver:
+        memory: "2g"
+      executor:
+        memory: "2g"
+        cores: 2
+  
+  staging:
+    master: "yarn"
+    spark:
+      driver:
+        memory: "4g"
+        cores: 2
+      executor:
+        memory: "8g"
+        cores: 4
+        instances: 4
+      sql:
+        shuffle_partitions: 400
+  
+  production:
+    master: "yarn"
+    spark:
+      driver:
+        memory: "8g"
+        cores: 4
+      executor:
+        memory: "16g"
+        cores: 8
+        instances: 16
+      sql:
+        shuffle_partitions: 1000
+      performance:
+        external_shuffle_enabled: true

@@ -1,14 +1,19 @@
 """
 Multiplayer Gaming System API
-FastAPI application with MongoDB and Neo4j
+FastAPI application with MongoDB, Neo4j, and Spark Analytics
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 
 from app.database.mongodb import connect_mongodb, close_mongodb
 from app.database.neo4j_db import connect_neo4j, close_neo4j, is_neo4j_connected
+from app.scheduler.job_scheduler import init_scheduler
+from app.routes.spark_analytics import router as spark_analytics_router
+
+logger = logging.getLogger(__name__)
 from app.routes.mongodb_routes import (
     players_router,
     games_router,
@@ -42,6 +47,16 @@ async def lifespan(app: FastAPI):
     print("=" * 50)
     await connect_mongodb()
     await connect_neo4j()
+    
+    # Initialize Spark job scheduler
+    print("[SPARK] Initializing Spark job scheduler...")
+    try:
+        scheduler = init_scheduler()
+        scheduler.start()
+        print("[SPARK] Job scheduler started successfully")
+    except Exception as e:
+        logger.warning(f"[SPARK] Failed to initialize scheduler: {e}. Spark analytics will be unavailable.")
+    
     print("=" * 50)
     print("Startup complete!")
     print("=" * 50)
@@ -50,6 +65,13 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("Shutting down...")
+    try:
+        scheduler = init_scheduler()
+        scheduler.stop()
+        print("[SPARK] Job scheduler stopped")
+    except Exception as e:
+        logger.warning(f"Error stopping scheduler: {e}")
+    
     await close_mongodb()
     await close_neo4j()
     print("All connections closed!")
@@ -99,6 +121,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Spark Analytics Routes
+app.include_router(spark_analytics_router)
 
 # MongoDB Routes
 app.include_router(players_router, prefix="/api/v1")
